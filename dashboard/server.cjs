@@ -1,0 +1,499 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const dotenv = require('dotenv');
+const fs = require('fs');
+
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+app.use(cors());
+app.use(express.json());
+// Ensure API responses use UTF-8 encoding (for Vietnamese text) — API routes only
+app.use('/api', (req, res, next) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  next();
+});
+
+
+// Initialize Database connection dynamically
+let db;
+const isPostgres = !!process.env.DATABASE_URL;
+
+if (isPostgres) {
+  console.log("Connecting to PostgreSQL database...");
+  const { Client } = require('pg');
+  db = new Client({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false
+    }
+  });
+  db.connect().catch(err => {
+    console.error("PostgreSQL connection error:", err);
+    process.exit(1);
+  });
+} else {
+  console.log("Connecting to local SQLite database...");
+  const sqlite3 = require('sqlite3').verbose();
+  const dbFile = path.resolve(__dirname, 'db.sqlite');
+  db = new sqlite3.Database(dbFile, (err) => {
+    if (err) {
+      console.error("SQLite connection error:", err);
+      process.exit(1);
+    }
+  });
+}
+
+// Database helper wrapper for promises
+const dbQuery = (sql, params = []) => {
+  return new Promise((resolve, reject) => {
+    if (isPostgres) {
+      db.query(sql, params, (err, res) => {
+        if (err) reject(err);
+        else resolve(res.rows);
+      });
+    } else {
+      db.all(sql, params, (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows);
+      });
+    }
+  });
+};
+
+const dbRun = (sql, params = []) => {
+  return new Promise((resolve, reject) => {
+    if (isPostgres) {
+      db.query(sql, params, (err, res) => {
+        if (err) reject(err);
+        else resolve(res);
+      });
+    } else {
+      db.run(sql, params, function(err) {
+        if (err) reject(err);
+        else resolve({ lastID: this.lastID, changes: this.changes });
+      });
+    }
+  });
+};
+
+// Create tables schemas
+async function initDb() {
+  const sqliteSchemas = [
+    `CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      client TEXT NOT NULL,
+      status TEXT NOT NULL,
+      budget REAL,
+      received REAL,
+      dueDate TEXT,
+      nextAction TEXT,
+      nextActionDue TEXT,
+      projectType TEXT,
+      paymentD1 REAL,
+      paymentD2 REAL,
+      paymentD3 REAL,
+      milestones TEXT,
+      paymentPhase TEXT,
+      paymentPhaseProgress INTEGER,
+      thumbnailUrl TEXT,
+      notes TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS cash_flow (
+      id TEXT PRIMARY KEY,
+      label TEXT NOT NULL,
+      inflow REAL,
+      outflow REAL,
+      netProfit REAL
+    )`,
+    `CREATE TABLE IF NOT EXISTS expenses (
+      category TEXT PRIMARY KEY,
+      amount REAL,
+      percentage INTEGER,
+      color TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS alerts (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      description TEXT,
+      project TEXT,
+      urgency TEXT,
+      status TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS documents (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      project TEXT,
+      type TEXT,
+      status TEXT,
+      owner TEXT,
+      lastUpdated TEXT,
+      fileSize TEXT,
+      isUrgent INTEGER,
+      urgentReason TEXT,
+      priorityLevel TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS actions (
+      id TEXT PRIMARY KEY,
+      priorityOrder INTEGER,
+      title TEXT NOT NULL,
+      project TEXT,
+      priorityLevel TEXT,
+      suggestedAgent TEXT,
+      status TEXT,
+      notes TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS agents (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      status TEXT,
+      keyResponsibility TEXT,
+      currentTask TEXT,
+      recentActivity TEXT,
+      workloadProgress INTEGER,
+      avatarColor TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS recent_expenses (
+      id TEXT PRIMARY KEY,
+      title TEXT,
+      amount INTEGER,
+      date TEXT,
+      category TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS tasks (
+      id TEXT PRIMARY KEY,
+      taskName TEXT NOT NULL,
+      priority TEXT,
+      assignedAgent TEXT,
+      status TEXT,
+      dueTime TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS stats (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    )`
+  ];
+
+  const pgSchemas = [
+    `CREATE TABLE IF NOT EXISTS projects (
+      id VARCHAR(50) PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      client VARCHAR(255) NOT NULL,
+      status VARCHAR(50) NOT NULL,
+      budget DOUBLE PRECISION,
+      received DOUBLE PRECISION,
+      dueDate VARCHAR(50),
+      nextAction VARCHAR(255),
+      nextActionDue VARCHAR(50),
+      projectType VARCHAR(50),
+      paymentD1 DOUBLE PRECISION,
+      paymentD2 DOUBLE PRECISION,
+      paymentD3 DOUBLE PRECISION,
+      milestones TEXT,
+      paymentPhase VARCHAR(50),
+      paymentPhaseProgress INTEGER,
+      thumbnailUrl VARCHAR(255),
+      notes TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS cash_flow (
+      id VARCHAR(50) PRIMARY KEY,
+      label VARCHAR(50) NOT NULL,
+      inflow DOUBLE PRECISION,
+      outflow DOUBLE PRECISION,
+      netProfit DOUBLE PRECISION
+    )`,
+    `CREATE TABLE IF NOT EXISTS expenses (
+      category VARCHAR(50) PRIMARY KEY,
+      amount DOUBLE PRECISION,
+      percentage INTEGER,
+      color VARCHAR(50)
+    )`,
+    `CREATE TABLE IF NOT EXISTS alerts (
+      id VARCHAR(50) PRIMARY KEY,
+      type VARCHAR(100) NOT NULL,
+      description TEXT,
+      project VARCHAR(255),
+      urgency VARCHAR(50),
+      status VARCHAR(50)
+    )`,
+    `CREATE TABLE IF NOT EXISTS documents (
+      id VARCHAR(50) PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      project VARCHAR(255),
+      type VARCHAR(50),
+      status VARCHAR(50),
+      owner VARCHAR(255),
+      lastUpdated VARCHAR(50),
+      fileSize VARCHAR(50),
+      isUrgent INTEGER,
+      urgentReason TEXT,
+      priorityLevel VARCHAR(50)
+    )`,
+    `CREATE TABLE IF NOT EXISTS actions (
+      id VARCHAR(50) PRIMARY KEY,
+      priorityOrder INTEGER,
+      title VARCHAR(255) NOT NULL,
+      project VARCHAR(255),
+      priorityLevel VARCHAR(50),
+      suggestedAgent VARCHAR(100),
+      status VARCHAR(50),
+      notes TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS agents (
+      id VARCHAR(50) PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      status VARCHAR(50),
+      keyResponsibility TEXT,
+      currentTask VARCHAR(255),
+      recentActivity TEXT,
+      workloadProgress INTEGER,
+      avatarColor VARCHAR(100)
+    )`,
+    `CREATE TABLE IF NOT EXISTS tasks (
+      id VARCHAR(50) PRIMARY KEY,
+      taskName VARCHAR(255) NOT NULL,
+      priority VARCHAR(50),
+      assignedAgent VARCHAR(100),
+      status VARCHAR(50),
+      dueTime VARCHAR(50)
+    )`,
+    `CREATE TABLE IF NOT EXISTS stats (
+      key VARCHAR(100) PRIMARY KEY,
+      value TEXT
+    )`
+  ];
+
+  const schemas = isPostgres ? pgSchemas : sqliteSchemas;
+  
+  for (const sql of schemas) {
+    await dbRun(sql);
+  }
+
+  // Populate mock data if tables are empty
+  const projectCount = await dbQuery("SELECT COUNT(*) as count FROM projects");
+  const count = isPostgres ? parseInt(projectCount[0].count) : projectCount[0].count;
+
+  if (count === 0) {
+    console.log("Populating database with real data from Excel...");
+    try {
+      const { syncExcelToDatabase } = require('./excel-parser.cjs');
+      await syncExcelToDatabase(dbRun, dbQuery);
+      console.log("Database initialized and populated.");
+    } catch (e) {
+      console.error("Failed to seed database:", e);
+    }
+  }
+}
+
+// REST API Endpoints
+
+// Fetch entire Database structure
+app.get('/api/db', async (req, res) => {
+  try {
+    const projects = await dbQuery("SELECT * FROM projects");
+    const cashFlow = await dbQuery("SELECT * FROM cash_flow");
+    const expenses = await dbQuery("SELECT * FROM expenses");
+    const alerts = await dbQuery("SELECT * FROM alerts");
+    const documents = await dbQuery("SELECT * FROM documents");
+    const actions = await dbQuery("SELECT * FROM actions");
+    const agents = await dbQuery("SELECT * FROM agents");
+    const tasks = await dbQuery("SELECT * FROM tasks");
+    const recent_expenses = await dbQuery("SELECT * FROM recent_expenses");
+    const statsRows = await dbQuery("SELECT * FROM stats");
+
+    // Parse JSON strings back to arrays/objects where applicable
+    const parsedProjects = projects.map(p => ({
+      ...p,
+      projectName: p.name,       // alias so frontend reads `projectName`
+      milestones: p.milestones ? JSON.parse(p.milestones) : []
+    }));
+
+    const parsedDocuments = documents.map(d => ({
+      ...d,
+      isUrgent: !!d.isUrgent
+    }));
+
+    const statsObj = {};
+    statsRows.forEach(row => {
+      statsObj[row.key] = JSON.parse(row.value);
+    });
+
+    res.json({
+      dashboard: statsObj.dashboard || {},
+      projects: parsedProjects,
+      cashFlow,
+      expenses,
+      alerts,
+      documents: parsedDocuments,
+      actions,
+      agents,
+      tasks,
+      recent_expenses,
+      agentPerformance: statsObj.agentPerformance || {}
+    });
+  } catch (err) {
+    console.error("API error fetching db:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update Project
+app.put('/api/projects/:id', async (req, res) => {
+  try {
+    const { notes } = req.body;
+    await dbRun("UPDATE projects SET notes = ? WHERE id = ?", [notes, req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add Project
+app.post('/api/projects', async (req, res) => {
+  try {
+    const p = req.body;
+    await dbRun(
+      `INSERT INTO projects (id, name, client, status, budget, received, dueDate, nextAction, nextActionDue, projectType, paymentD1, paymentD2, paymentD3, milestones, paymentPhase, paymentPhaseProgress, thumbnailUrl, notes) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [p.id, p.name, p.client, p.status, p.budget, p.received, p.dueDate, p.nextAction, p.nextActionDue, p.projectType, p.paymentD1, p.paymentD2, p.paymentD3, JSON.stringify(p.milestones), p.paymentPhase, p.paymentPhaseProgress, p.thumbnailUrl, p.notes]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add Document
+app.post('/api/documents', async (req, res) => {
+  try {
+    const d = req.body;
+    await dbRun(
+      `INSERT INTO documents (id, name, project, type, status, owner, lastUpdated, fileSize, isUrgent, urgentReason, priorityLevel) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [d.id, d.name, d.project, d.type, d.status, d.owner, d.lastUpdated, d.fileSize, d.isUrgent ? 1 : 0, d.urgentReason, d.priorityLevel]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update Document Status
+app.put('/api/documents/:id/status', async (req, res) => {
+  try {
+    const { status, isUrgent } = req.body;
+    await dbRun("UPDATE documents SET status = ?, isUrgent = ? WHERE id = ?", [status, isUrgent ? 1 : 0, req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete Document
+app.delete('/api/documents/:id', async (req, res) => {
+  try {
+    await dbRun("DELETE FROM documents WHERE id = ?", [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update Action Status
+app.put('/api/actions/:id', async (req, res) => {
+  try {
+    const { status } = req.body;
+    await dbRun("UPDATE actions SET status = ? WHERE id = ?", [status, req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Clear Finance Alert
+app.put('/api/alerts/:id', async (req, res) => {
+  try {
+    const { status } = req.body;
+    await dbRun("UPDATE alerts SET status = ? WHERE id = ?", [status, req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update Agent Status
+app.put('/api/agents/:id', async (req, res) => {
+  try {
+    const { status } = req.body;
+    await dbRun("UPDATE agents SET status = ? WHERE id = ?", [status, req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Complete Task
+app.put('/api/tasks/:id', async (req, res) => {
+  try {
+    const { status } = req.body;
+    await dbRun("UPDATE tasks SET status = ? WHERE id = ?", [status, req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Sync FROM Excel on Google Drive → Database
+app.post('/api/sync', async (req, res) => {
+  try {
+    console.log("Triggering Excel → DB sync...");
+    const { syncExcelToDatabase } = require('./excel-parser.cjs');
+    await syncExcelToDatabase(dbRun, dbQuery);
+    console.log("Excel → DB sync complete.");
+    res.json({ success: true, message: "Sync from Excel completed successfully." });
+  } catch (err) {
+    console.error("Sync error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Sync FROM Database → Excel on Google Drive
+app.post('/api/sync-to-excel', async (req, res) => {
+  try {
+    console.log("Triggering DB → Excel sync...");
+    const { syncDbToExcel } = require('./excel-writer.cjs');
+    const result = await syncDbToExcel(dbQuery);
+    console.log(`DB → Excel sync complete. Updated ${result.updatedCount} projects.`);
+    res.json({ success: true, message: `Đã ghi ${result.updatedCount} dự án vào Excel thành công.`, updatedCount: result.updatedCount });
+  } catch (err) {
+    console.error("Sync-to-excel error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Serve static assets in production
+const distPath = path.resolve(__dirname, 'dist');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.get('*', (req, res) => {
+    res.sendFile(path.resolve(distPath, 'index.html'));
+  });
+}
+
+// Start server
+initDb().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
+}).catch(err => {
+  console.error("Database initialization failed:", err);
+});

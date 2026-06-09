@@ -1,0 +1,30 @@
+{
+  "Projects": {
+    "id": "ID",
+    "projectName": "Project Name",
+    "client": "Client",
+    "status": "Stage Status",
+    "projectType": "Type",
+    "currentStage": "Current Stage",
+    "priority": "Priority",
+    "dueDate": "Due",
+    "nextAction": "Next Action",
+    "notes": "Notes"
+  },
+  "Expenses": {
+    "id": null,
+    "date": "Date",
+    "vendor": "Vendor / Payee",
+    "amount": "Amount",
+    "project": "Project Name",
+    "category": "Expense Category",
+    "paymentMethod": "Payment Method",
+    "notes": "Description / Note"
+  },
+  "Income": {
+    "date": "Ngày",
+    "project": "Dự Án",
+    "amount": "Số Tiền",
+    "notes": "Ghi Chú"
+  }
+}

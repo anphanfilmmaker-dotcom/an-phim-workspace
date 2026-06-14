@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from "react";
-import { getStoredSheetData, setStoredSheetData, formatVND } from "./data";
+import { getStoredSheetData, setStoredSheetData, formatVND, INITIAL_SHEET_DATA } from "./data";
 import { GoogleSheetDB, Project, DocumentItem, DocStatus } from "./types";
 
 import OverviewPage from "./components/OverviewPage";
@@ -39,6 +39,11 @@ type PageId = "overview" | "projects" | "finance" | "agents" | "documents";
 export default function App() {
   // Main Database State initialized from reactive LocalStorage layer
   const [db, setDb] = useState<GoogleSheetDB>(getStoredSheetData());
+  
+  // Force update db on hot reload to bypass local storage caching
+  useEffect(() => {
+    setDb(getStoredSheetData());
+  }, [INITIAL_SHEET_DATA]);
   const [activePage, setActivePage] = useState<PageId>("overview");
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -55,6 +60,14 @@ export default function App() {
   });
 
   const t = translations[lang];
+
+  // Auto-scroll to top when navigating pages or selecting a new project
+  useEffect(() => {
+    const el = document.getElementById("main-scroll-container");
+    if (el) {
+      el.scrollTop = 0;
+    }
+  }, [activePage, selectedProjectId]);
 
   // Sync state modifications with persistent localStorage layer
   const updateDbState = (newDb: GoogleSheetDB) => {
@@ -209,6 +222,17 @@ export default function App() {
     updateDbState({ ...db, projects: nextProjects });
   };
 
+  // Handler: Update full project
+  const handleUpdateProject = (updatedProj: Project) => {
+    const nextProjects = db.projects.map((proj) => {
+      if (proj.id === updatedProj.id) {
+        return updatedProj;
+      }
+      return proj;
+    });
+    updateDbState({ ...db, projects: nextProjects });
+  };
+
   // Handler: Add document from drag and drop uploader
   const handleAddDocument = (newDoc: DocumentItem) => {
     updateDbState({
@@ -251,10 +275,10 @@ export default function App() {
 
   // Helper: Get completed projects sorted or padded for the sidebar brief
   const getCompletedProjectsForSidebar = () => {
-    const completed = db.projects.filter(p => p.status === "Completed");
+    const completed = db.projects.filter(p => p.status === "Hoàn thành");
     if (completed.length >= 3) return completed.slice(0, 3);
     const others = db.projects
-      .filter(p => p.status !== "Completed")
+      .filter(p => p.status !== "Hoàn thành")
       .sort((a, b) => {
         const progA = a.budget ? a.received / a.budget : 0;
         const progB = b.budget ? b.received / b.budget : 0;
@@ -320,7 +344,7 @@ export default function App() {
               {/* Majestic A structure wrapped with movie filmreel strip */}
               <div className="relative w-10 h-10 shrink-0">
                 <img 
-                  src="https://drive.google.com/uc?export=view&id=1hHHoIsxv_YDMfzOzNxdvnIE8sL0sKWMp" 
+                  src="/logo.png" 
                   alt="An Phim Logo" 
                   className="w-full h-full object-contain drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]" 
                 />
@@ -433,7 +457,7 @@ export default function App() {
               </div>
               <div className="space-y-2">
                 {getCompletedProjectsForSidebar().map((p) => {
-                  const isCompleted = p.status === "Completed";
+                  const isCompleted = p.status === "Hoàn thành";
                   const progress = Math.min(100, Math.round((p.received / p.budget) * 100));
                   return (
                     <div 
@@ -585,7 +609,7 @@ export default function App() {
       <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#0A0C0E]">
         
         {/* TOP BAR / NAVIGATION HEADER HEADER */}
-        <header className="h-16 bg-[#0E1012]/85 border-b border-[#1e2329]/95 flex items-center justify-between px-6 shrink-0 relative z-30 select-none">
+        <header className="h-16 bg-[#0E1012]/85 flex items-center justify-between pl-3 pr-6 shrink-0 relative z-30 select-none">
           
           <div className="flex items-center space-x-3">
             {/* Sidebar collapse toggle */}
@@ -634,7 +658,7 @@ export default function App() {
         </header>
 
         {/* CENTRAL VIEW PORT BODY SWITCHER PANEL */}
-        <div className="flex-1 overflow-y-auto p-6 bg-[#07090b]">
+        <div id="main-scroll-container" className="flex-1 overflow-y-auto pl-3 pr-6 pb-2 pt-0">
           
           {/* Main conditional page router rendering */}
           {activePage === "overview" && (
@@ -651,8 +675,9 @@ export default function App() {
             <ProjectsPage 
               db={db}
               selectedProjectId={selectedProjectId}
-              onSelectProject={setSelectedProjectId}
+              onSelectProject={handleSelectProject}
               onUpdateProjectNotes={handleUpdateProjectNotes}
+              onUpdateProject={handleUpdateProject}
               onAddProject={handleAddProject}
               lang={lang}
             />

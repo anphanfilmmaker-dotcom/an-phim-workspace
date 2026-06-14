@@ -49,14 +49,13 @@ export default function SheetSimulator({ isOpen, onClose, db, onSync, lang = "vi
       id: "proj_" + Date.now(),
       name: "New Film Project",
       client: "New Client Ltd",
-      status: "Waiting Client",
+      status: "Chờ feedback",
       budget: 1500000000,
       received: 300000000,
       dueDate: "Dec 31, 2026",
       nextAction: "Initial consultation & kick-off setup",
       nextActionDue: "June 20, 2026",
-      riskLevel: "Low",
-      riskDescription: "Contract drafting in progress.",
+      projectType: "AI Film",
       milestones: [
         { name: "Pre-production", date: "June 30, 2026", completed: false },
         { name: "Principal Photography", date: "August 15, 2026", completed: false },
@@ -292,10 +291,12 @@ export default function SheetSimulator({ isOpen, onClose, db, onSync, lang = "vi
                             }}
                             className="bg-[#171b21] text-xs text-emerald-400 tracking-tight rounded px-1.5 py-1 w-full outline-none border border-[#2b333c]"
                           >
-                            <option value="On Track">On Track</option>
-                            <option value="At Risk">At Risk</option>
-                            <option value="Waiting Client">Waiting Client</option>
-                            <option value="Completed">Completed</option>
+                            <option value="Chưa bắt đầu">Chưa bắt đầu</option>
+                            <option value="Đang làm">Đang làm</option>
+                            <option value="Chờ feedback">Chờ feedback</option>
+                            <option value="Cần revise">Cần revise</option>
+                            <option value="Hoàn thành">Hoàn thành</option>
+                            <option value="Tạm dừng">Tạm dừng</option>
                           </select>
                         </td>
                         <td className="p-1 border-r border-[#1b2026] w-36">
@@ -860,7 +861,7 @@ export default function SheetSimulator({ isOpen, onClose, db, onSync, lang = "vi
                       <strong className="text-white font-mono text-sm">
                         {formatVND(
                           localDb.projects
-                            .filter((p) => p.status !== "Completed")
+                            .filter((p) => p.status !== "Hoàn thành")
                             .reduce((sum, p) => sum + (p.budget - p.received), 0)
                         )}
                       </strong>

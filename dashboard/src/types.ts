@@ -48,10 +48,22 @@ export interface CashFlowPoint {
 
 // Structuring an expense item
 export interface ExpenseCategoryItem {
-  category: "Production" | "Freelancer" | "AI Tools" | "Admin" | "Others" | "Personal" | "Marketing" | string;
+  category: "Freelancer" | "AI Tools" | "Production" | "Equipment" | "Sales" | "Food/Meeting" | "Marketing" | "Office/Admin" | "Taxe/Fees" | "Personal" | "Others" | string;
   amount: number; // in VND
   percentage: number; // e.g. 48
   color: string; // Tailwind color class or hex
+}
+
+// Structuring individual expense transaction
+export interface ExpenseTransaction {
+  id: string;
+  date: string; // e.g. "2026-06-12"
+  category: string;
+  project: string; // project name, or "Cá nhân", "Công ty"
+  description: string;
+  vendor?: string;
+  paymentMethod?: string;
+  amount: number;
 }
 
 // Structuring a finance alert
@@ -129,6 +141,7 @@ export interface GoogleSheetDB {
   projects: Project[];
   cashFlow: CashFlowPoint[];
   expenses: ExpenseCategoryItem[];
+  expenseTransactions: ExpenseTransaction[];
   alerts: FinanceAlert[];
   documents: DocumentItem[];
   actions: CEOAction[];

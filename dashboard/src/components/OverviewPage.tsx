@@ -6,21 +6,33 @@
 import React, { useState } from "react";
 import { GoogleSheetDB, Project, CEOAction } from "../types";
 import { formatVND } from "../data";
-import { 
-  DollarSign, 
-  Briefcase, 
-  CheckSquare, 
-  AlertTriangle, 
-  ChevronRight, 
-  Bot, 
-  CircleDot, 
-  FileCheck, 
-  Clock, 
-  User, 
-  TrendingUp, 
-  ArrowUpRight 
+import {
+  DollarSign,
+  Briefcase,
+  CheckSquare,
+  AlertTriangle,
+  ChevronRight,
+  Bot,
+  CircleDot,
+  FileCheck,
+  Clock,
+  User,
+  TrendingUp,
+  ArrowUpRight
 } from "lucide-react";
 import { translations } from "../translations";
+
+const getStatusTextColor = (status: string) => {
+  switch (status) {
+    case 'Chưa bắt đầu': return 'text-neutral-400';
+    case 'Đang làm': return 'text-blue-400';
+    case 'Chờ feedback': return 'text-amber-400';
+    case 'Cần revise': return 'text-rose-400';
+    case 'Hoàn thành': return 'text-emerald-400';
+    case 'Tạm dừng': return 'text-stone-500';
+    default: return 'text-white';
+  }
+};
 
 interface OverviewPageProps {
   db: GoogleSheetDB;
@@ -40,8 +52,13 @@ export default function OverviewPage({
   const t = translations[lang];
 
   // Grab top 3 active projects
-  const activeProjects = db.projects
-    .filter((p) => p.status !== "Completed")
+  const activeProjects = [...db.projects]
+    .filter((p) => p.status !== "Hoàn thành")
+    .sort((a, b) => {
+      if (a.status === "Đang làm" && b.status !== "Đang làm") return -1;
+      if (a.status !== "Đang làm" && b.status === "Đang làm") return 1;
+      return 0;
+    })
     .slice(0, 3);
 
   // Grab all pending actions — mỗi item là 1 task riêng biệt
@@ -57,27 +74,27 @@ export default function OverviewPage({
 
   // Let's compute some nice SVG metrics for Cash Flow (A dual green–orange bar graph with white trendline for net profit)
   const maxCfVal = Math.max(...recentCashFlow.map(cf => Math.max(cf.inflow, Math.abs(cf.outflow))) || [1]);
-  
+
   // ── Expense donut: gom nhóm nhỏ thành "Khác" ──────────────────────────
   const TOP_CATEGORIES = ["Personal", "Marketing", "Freelancer"];
   const PIE_COLORS: Record<string, string> = {
-    Personal:   "#10B981", // emerald
-    Marketing:  "#f59e0b", // amber
+    Personal: "#10B981", // emerald
+    Marketing: "#f59e0b", // amber
     Freelancer: "#f97316", // orange  (Nhân sự Ngoài)
-    Khác:       "#6366f1", // indigo
+    Khác: "#6366f1", // indigo
   };
   const PIE_TEXT_COLORS: Record<string, string> = {
-    Personal:   "text-emerald-400",
-    Marketing:  "text-amber-400",
+    Personal: "text-emerald-400",
+    Marketing: "text-amber-400",
     Freelancer: "text-orange-400",
-    Khác:       "text-indigo-400",
+    Khác: "text-indigo-400",
   };
 
   // Tách top 3 + gom "Khác"
   const topExpenses = db.expenses.filter(e => TOP_CATEGORIES.includes(e.category));
   const othersExpenses = db.expenses.filter(e => !TOP_CATEGORIES.includes(e.category));
-  const othersAmount    = othersExpenses.reduce((s, e) => s + e.amount, 0);
-  const othersPercent   = othersExpenses.reduce((s, e) => s + e.percentage, 0);
+  const othersAmount = othersExpenses.reduce((s, e) => s + e.amount, 0);
+  const othersPercent = othersExpenses.reduce((s, e) => s + e.percentage, 0);
   const pieData = [
     ...topExpenses,
     ...(othersPercent > 0 ? [{ category: "Khác", amount: othersAmount, percentage: othersPercent, color: "" }] : []),
@@ -87,14 +104,14 @@ export default function OverviewPage({
   const categoryLabel = (cat: string) => {
     if (lang === "en") return cat;
     const map: Record<string, string> = {
-      Personal:   "Personal",
-      Marketing:  "Marketing",
+      Personal: "Personal",
+      Marketing: "Marketing",
       Freelancer: "Nhân sự Ngoài",
       Production: "Sản xuất Phim",
       "AI Tools": "Công cụ AI",
-      Admin:      "Hành chính",
-      Others:     "Danh mục khác",
-      Khác:       "Khác",
+      Admin: "Hành chính",
+      Others: "Danh mục khác",
+      Khác: "Khác",
     };
     return map[cat] || cat;
   };
@@ -124,13 +141,13 @@ export default function OverviewPage({
   };
 
   return (
-    <div className="md:h-[calc(100vh-7rem)] flex flex-col gap-3 animate-fade-in md:overflow-hidden select-none text-white">
-      
+    <div className="md:h-[calc(100vh-4.5rem)] flex flex-col gap-2 animate-fade-in md:overflow-hidden select-none text-white">
+
       {/* Top executive KPI Row - Compact, responsive layout */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 shrink-0">
-        
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 shrink-0">
+
         {/* Card 1: Cash Available */}
-        <div className="bg-[#121417] border border-[#1e2329]/80 rounded-xl py-2 px-3 flex flex-col justify-between hover:border-emerald-500/20 transition group">
+        <div className="bg-[#121417] border border-[#1e2329]/80 rounded-xl p-2 flex flex-col justify-between hover:border-emerald-500/20 transition group">
           <div className="flex justify-between items-start">
             <p className="text-[10px] font-mono text-neutral-450 uppercase tracking-wider">{t.cashAvailable}</p>
             <div className="w-6 h-6 rounded-md bg-emerald-500/10 flex items-center justify-center border border-emerald-500/10 shrink-0">
@@ -149,7 +166,7 @@ export default function OverviewPage({
         </div>
 
         {/* Card 2: Receivable */}
-        <div className="bg-[#121417] border border-[#1e2329]/80 rounded-xl py-2 px-3 flex flex-col justify-between hover:border-emerald-500/20 transition group">
+        <div className="bg-[#121417] border border-[#1e2329]/80 rounded-xl p-2 flex flex-col justify-between hover:border-emerald-500/20 transition group">
           <div className="flex justify-between items-start">
             <p className="text-[10px] font-mono text-neutral-450 uppercase tracking-wider">{t.receivable}</p>
             <div className="w-6 h-6 rounded-md bg-emerald-500/10 flex items-center justify-center border border-emerald-500/10 shrink-0">
@@ -168,7 +185,7 @@ export default function OverviewPage({
         </div>
 
         {/* Card 3: Active Projects */}
-        <div className="bg-[#121417] border border-[#1e2329]/80 rounded-xl py-2 px-3 flex flex-col justify-between hover:border-emerald-500/20 transition group">
+        <div className="bg-[#121417] border border-[#1e2329]/80 rounded-xl p-2 flex flex-col justify-between hover:border-emerald-500/20 transition group">
           <div className="flex justify-between items-start">
             <p className="text-[10px] font-mono text-neutral-450 uppercase tracking-wider">{t.activeProjects}</p>
             <div className="w-6 h-6 rounded-md bg-emerald-500/10 flex items-center justify-center border border-emerald-500/10 shrink-0">
@@ -186,7 +203,7 @@ export default function OverviewPage({
         </div>
 
         {/* Card 4: CEO Actions */}
-        <div className="bg-[#121417] border border-orange-500/10 rounded-xl py-2 px-3 flex flex-col justify-between hover:border-orange-500/30 transition group">
+        <div className="bg-[#121417] border border-orange-500/10 rounded-xl p-2 flex flex-col justify-between hover:border-orange-500/30 transition group">
           <div className="flex justify-between items-start">
             <p className="text-[10px] font-mono text-orange-400 uppercase tracking-wider">{t.ceoActions}</p>
             <div className="w-6 h-6 rounded-md bg-orange-500/10 flex items-center justify-center border border-orange-500/10 shrink-0">
@@ -206,13 +223,13 @@ export default function OverviewPage({
       </div>
 
       {/* Main split grid layout */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 md:flex-1 md:overflow-hidden min-h-0">
-        
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-2 md:flex-1 md:overflow-hidden min-h-0">
+
         {/* Left column: Projects and Finance */}
-        <div className="md:col-span-7 xl:col-span-8 flex flex-col gap-3 md:h-full md:overflow-hidden min-h-0">
-          
+        <div className="md:col-span-7 xl:col-span-8 flex flex-col gap-2 md:h-full md:overflow-hidden min-h-0">
+
           {/* Section A: Project Overview */}
-          <div className="bg-[#121417] rounded-xl border border-[#1e2329]/85 p-3 flex flex-col md:flex-[0.9] md:min-h-0">
+          <div className="flex flex-col md:flex-[1.2] md:min-h-0 py-1">
             <div className="flex justify-between items-center mb-2 shrink-0">
               <div>
                 <h3 className="text-[11px] sm:text-xs font-mono font-bold text-[#10B981] uppercase tracking-wider">
@@ -220,8 +237,8 @@ export default function OverviewPage({
                 </h3>
                 <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug">{t.projectOverviewDesc}</p>
               </div>
-              <button 
-                onClick={() => onSelectProject("")} 
+              <button
+                onClick={() => onSelectProject("")}
                 className="text-[10px] text-[#10B981] hover:text-emerald-400 flex items-center space-x-1 font-mono transition cursor-pointer"
               >
                 <span>{lang === "en" ? "View all projects" : "Xem tất cả"}</span>
@@ -229,38 +246,38 @@ export default function OverviewPage({
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1 md:min-h-0">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1 md:min-h-0">
               {activeProjects.map((p) => {
-                const isAtRisk = p.status === "At Risk";
-                const progressWidth = Math.min(100, Math.round((p.received / p.budget) * 100));
-                
+                const isAtRisk = p.status === "Cần revise";
+                const isCompleted = p.status === "Hoàn thành";
+                const completedTasks = p.milestones ? p.milestones.filter(m => m.completed).length : 0;
+                const totalTasks = p.milestones ? p.milestones.length : 0;
+                const taskProgress = isCompleted ? 100 : (totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0);
+
                 return (
-                  <div 
+                  <div
                     key={p.id}
                     onClick={() => onSelectProject(p.id)}
                     className="bg-[#171b21] hover:bg-[#1b2027]/90 rounded-xl p-3 border border-[#232a32] hover:border-emerald-500/40 cursor-pointer flex flex-col justify-between transition group h-[142px] md:h-full md:min-h-0"
                   >
                     <div className="flex flex-col flex-1 min-h-0 justify-between">
                       <div className="flex flex-col flex-1 min-h-0">
-                        {/* Status */}
+                        {/* Top Row: Project Name & Budget */}
                         <div className="flex items-center justify-between mb-1 shrink-0">
-                          <span className="text-[10px] text-neutral-400 font-mono tracking-tight truncate max-w-[90px]">
-                            {p.client}
+                          <span className="text-[11px] text-white font-sans font-bold tracking-tight truncate max-w-[120px]">
+                            {p.name}
                           </span>
-                          <div className="flex items-center space-x-1">
-                            <CircleDot className={`w-2 h-2 ${isAtRisk ? "text-orange-500 animate-pulse" : "text-[#10B981]"}`} />
-                            <span className={`text-[10px] font-mono uppercase ${isAtRisk ? "text-orange-400" : "text-[#10B981]"}`}>
-                              {translateStatus(p.status)}
-                            </span>
-                          </div>
+                          <span className="text-[10px] font-mono font-bold text-emerald-400">
+                            {Math.round(p.budget / 1_000_000)}M
+                          </span>
                         </div>
 
                         {/* Visual Frame */}
-                        <div className="relative h-[44px] md:h-0 md:flex-1 w-full rounded-lg bg-neutral-900 border border-neutral-800/60 overflow-hidden mb-1.5 min-h-[32px] shrink-0 md:shrink">
+                        <div className="relative flex-1 w-full rounded-lg bg-neutral-900 border border-neutral-800/60 overflow-hidden mb-1.5 min-h-[32px] shrink-0 md:shrink">
                           {p.thumbnailUrl ? (
-                            <img 
-                              src={p.thumbnailUrl} 
-                              alt={p.name} 
+                            <img
+                              src={p.thumbnailUrl}
+                              alt={p.name}
                               referrerPolicy="no-referrer"
                               className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition duration-500"
                             />
@@ -270,27 +287,22 @@ export default function OverviewPage({
                             </div>
                           )}
                           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                          <div className="absolute bottom-1 left-2">
-                            <p className="text-[10px] xl:text-[11px] font-sans font-semibold text-white truncate max-w-[150px]">{p.name}</p>
+                          
+                          {/* Client and Status inside image */}
+                          <div className="absolute bottom-2 left-2">
+                            <p className="text-[10px] font-mono font-medium text-neutral-300 truncate max-w-[120px]">{p.client}</p>
                           </div>
-                        </div>
-                      </div>
+                          <div className="absolute bottom-2 right-2 flex items-center space-x-1">
+                            <CircleDot className={`w-2 h-2 ${getStatusTextColor(p.status)} ${p.status === "Cần revise" || p.status === "Tạm dừng" ? "animate-pulse" : ""}`} />
+                            <span className={`text-[9px] font-mono uppercase ${getStatusTextColor(p.status)}`}>
+                              {translateStatus(p.status)}
+                            </span>
+                          </div>
 
-                      {/* Budget Received Progress Bar */}
-                      <div className="space-y-0.5 shrink-0 mt-auto">
-                        <div className="flex justify-between items-center text-[10px] font-mono leading-none">
-                          <span className="text-neutral-450">
-                            {lang === "en" ? "Paid" : "Đã trả"} ({progressWidth}%)
-                          </span>
-                          <span className="text-white font-semibold">
-                            {Math.round(p.received / 1_000_000)}M / {Math.round(p.budget / 1_000_000)}M
-                          </span>
-                        </div>
-                        <div className="w-full h-1 rounded-full bg-neutral-800 overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full transition-all duration-700 ${isAtRisk ? "bg-orange-500" : "bg-[#10B981]"}`}
-                            style={{ width: `${progressWidth}%` }}
-                          />
+                          {/* Task progress bar at the very bottom */}
+                          <div className="absolute bottom-0 left-0 w-full h-[3px] bg-neutral-800/80">
+                            <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${taskProgress}%` }} />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -310,7 +322,7 @@ export default function OverviewPage({
           </div>
 
           {/* Section B: Finance Snapshot charts */}
-          <div className="bg-[#121417] rounded-xl border border-[#1e2329]/85 p-3 flex flex-col md:flex-[1.1] md:min-h-0 min-h-0">
+          <div className="flex flex-col md:flex-[1.1] md:min-h-0 min-h-0 py-1">
             <div className="flex justify-between items-center mb-1.5 px-0.5 shrink-0">
               <div>
                 <h3 className="text-[11px] sm:text-xs font-mono font-bold text-[#10B981] uppercase tracking-wider">
@@ -323,10 +335,10 @@ export default function OverviewPage({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:flex-1 md:overflow-hidden min-h-0">
-              
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:flex-1 md:overflow-hidden min-h-0">
+
               {/* Chart 1: Cash Flow Dual Bars */}
-              <div className="bg-[#171b21] rounded-xl p-3 border border-[#232a32] flex flex-col justify-between md:h-full md:overflow-hidden min-h-0">
+              <div className="bg-[#171b21] rounded-xl p-2 border border-[#232a32] flex flex-col justify-between md:h-full md:overflow-hidden min-h-0">
                 <div className="flex justify-between items-center mb-1.5 shrink-0">
                   <span className="text-[10px] font-mono text-neutral-350 font-medium">{t.weeklyCashFlowTrend}</span>
                   <div className="flex items-center space-x-2 text-[10px] font-mono">
@@ -353,7 +365,7 @@ export default function OverviewPage({
                     <line x1="0" y1="45" x2="100" y2="45" stroke="#1f2730" strokeWidth="0.25" strokeDasharray="1,1" />
 
                     {recentCashFlow.map((cf, i) => {
-                      const xPos = 4 + i * 14; 
+                      const xPos = 4 + i * 14;
                       const inflowYPercent = Math.min(20, (cf.inflow / maxCfVal) * 20);
                       const outflowYPercent = Math.min(20, (Math.abs(cf.outflow) / maxCfVal) * 20);
                       const inflowY = 27.5 - inflowYPercent;
@@ -361,20 +373,20 @@ export default function OverviewPage({
 
                       return (
                         <g key={cf.id} className="group cursor-pointer">
-                          <rect 
-                            x={xPos} 
-                            y={inflowY} 
-                            width="4" 
-                            height={inflowYPercent} 
-                            className="fill-emerald-500/85 transition" 
+                          <rect
+                            x={xPos}
+                            y={inflowY}
+                            width="4"
+                            height={inflowYPercent}
+                            className="fill-emerald-500/85 transition"
                             rx="0.5"
                           />
-                          <rect 
-                            x={xPos + 4.5} 
-                            y={outflowY} 
-                            width="4" 
-                            height={outflowYPercent} 
-                            className="fill-orange-500/85 transition" 
+                          <rect
+                            x={xPos + 4.5}
+                            y={outflowY}
+                            width="4"
+                            height={outflowYPercent}
+                            className="fill-orange-500/85 transition"
                             rx="0.5"
                           />
                         </g>
@@ -409,7 +421,7 @@ export default function OverviewPage({
                       );
                     })}
                   </svg>
-                  
+
                   <div className="absolute bottom-0 left-0 right-0 flex justify-between px-1 text-[8.5px] text-neutral-450 font-mono">
                     {recentCashFlow.map(cf => (
                       <span key={cf.id}>{cf.label.split(',')[0]}</span>
@@ -419,16 +431,16 @@ export default function OverviewPage({
               </div>
 
               {/* Chart 2: Capital Expense Breakdown — gom nhóm nhỏ thành "Khác" */}
-              <div className="bg-[#171b21] rounded-xl p-3 border border-[#232a32] flex flex-col justify-between md:h-full md:overflow-hidden min-h-0">
+              <div className="bg-[#171b21] rounded-xl p-2 border border-[#232a32] flex flex-col justify-between md:h-full md:overflow-hidden min-h-0">
                 <div className="flex justify-between items-center mb-1.5 shrink-0">
                   <span className="text-[10px] font-mono text-neutral-350 font-medium">{t.expenseDistribution}</span>
                   <span className="text-[10px] font-mono font-bold text-[#10B981]">{formatVND(totalExpense)}</span>
                 </div>
 
-                <div className="flex flex-col gap-2 flex-1 min-h-0">
+                <div className="flex flex-row items-center gap-4 flex-1 min-h-0 overflow-y-auto custom-thin-scroll">
                   {/* Donut SVG */}
-                  <div className="flex items-center justify-center">
-                    <div className="relative w-20 h-20 shrink-0">
+                  <div className="flex items-center justify-center shrink-0">
+                    <div className="relative w-20 h-20">
                       <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
                         <circle cx="18" cy="18" r="15.91549430918954" fill="transparent" stroke="#1a2027" strokeWidth="3.5" />
                         {pieData.map((e) => {
@@ -460,14 +472,14 @@ export default function OverviewPage({
                   </div>
 
                   {/* Legend rows: Tên | Số tiền (Tỷ lệ%) */}
-                  <div className="space-y-1 overflow-hidden">
+                  <div className="space-y-1.5 flex-1 min-w-0">
                     {pieData.map((e) => {
                       const textColor = PIE_TEXT_COLORS[e.category] ?? "text-neutral-400";
-                      const dotColor  = PIE_COLORS[e.category] ?? "#9ca3af";
+                      const dotColor = PIE_COLORS[e.category] ?? "#9ca3af";
                       return (
                         <div key={e.category} className="flex items-center gap-1.5 text-[9.5px] leading-tight">
                           <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
-                          <span className="text-neutral-300 font-sans font-medium shrink-0">
+                          <span className="text-neutral-300 font-sans font-medium shrink-0 truncate max-w-[70px]">
                             {categoryLabel(e.category)}
                           </span>
                           <span className="text-neutral-600 mx-0.5">|</span>
@@ -487,8 +499,8 @@ export default function OverviewPage({
         </div>
 
         {/* Right column: Priority Actions & AI status */}
-        <div className="md:col-span-5 xl:col-span-4 flex flex-col gap-3 md:h-full md:overflow-hidden min-h-0">
-          
+        <div className="md:col-span-5 xl:col-span-4 flex flex-col gap-2 md:h-full md:overflow-hidden min-h-0">
+
           {/* Section C: Today's Priority checklist — mỗi sub-task là 1 ô riêng */}
           <TodayTasksPanel
             actions={pendingActions}
@@ -585,21 +597,21 @@ function TodayTasksPanel({
   };
 
   return (
-    <div className="bg-[#121417] rounded-xl border border-[#1e2329]/85 p-3 flex-1 flex flex-col min-h-0 md:overflow-hidden">
+    <div className="bg-[#121417] rounded-xl border border-[#1e2329]/85 p-2 flex-1 flex flex-col min-h-0 md:overflow-hidden">
       <h3 className="text-[11px] sm:text-xs font-mono text-orange-400 uppercase tracking-widest mb-2 shrink-0">
         {t.todaysPriorityActions}
       </h3>
 
       <div className="space-y-2 flex-1 overflow-y-auto pr-1 select-none custom-thin-scroll">
         {actions.map((act) => {
-          const isHigh   = act.priorityLevel === "High";
+          const isHigh = act.priorityLevel === "High";
           const isMedium = act.priorityLevel === "Medium";
           const subTasks = splitIntoSubTasks(act.title);
 
           return (
             <div
               key={act.id}
-              className="bg-[#171b21] border border-[#232a32] rounded-xl p-3 transition group"
+              className="bg-[#171b21] border border-[#232a32] rounded-xl p-2 transition group"
             >
               {/* Header: priority badge + agent */}
               <div className="flex items-center justify-between mb-2">
@@ -608,13 +620,12 @@ function TodayTasksPanel({
                     {act.priorityOrder}
                   </div>
                   <span
-                    className={`text-[10px] px-1.5 rounded font-sans uppercase font-semibold border ${
-                      isHigh
-                        ? "bg-red-950/40 border-red-900/60 text-red-400"
-                        : isMedium
+                    className={`text-[10px] px-1.5 rounded font-sans uppercase font-semibold border ${isHigh
+                      ? "bg-red-950/40 border-red-900/60 text-red-400"
+                      : isMedium
                         ? "bg-orange-950/40 border-orange-900/60 text-orange-400"
                         : "bg-neutral-800/10 border-neutral-700 text-neutral-450"
-                    }`}
+                      }`}
                   >
                     {translatePriority(act.priorityLevel)}
                   </span>
@@ -631,7 +642,7 @@ function TodayTasksPanel({
               {/* Sub-tasks */}
               <div className="space-y-1">
                 {subTasks.map((task, idx) => {
-                  const key     = `${act.id}_${idx}`;
+                  const key = `${act.id}_${idx}`;
                   const checked = !!checkedMap[key];
 
                   return (
@@ -642,11 +653,10 @@ function TodayTasksPanel({
                       {/* Custom checkbox */}
                       <button
                         onClick={() => toggle(key, act.id, subTasks)}
-                        className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-all ${
-                          checked
-                            ? "bg-emerald-500 border-emerald-500"
-                            : "bg-transparent border-neutral-600 hover:border-emerald-500/60"
-                        }`}
+                        className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-all ${checked
+                          ? "bg-emerald-500 border-emerald-500"
+                          : "bg-transparent border-neutral-600 hover:border-emerald-500/60"
+                          }`}
                         aria-label={checked ? "Bỏ đánh dấu" : "Đánh dấu hoàn thành"}
                       >
                         {checked && (
@@ -658,11 +668,10 @@ function TodayTasksPanel({
 
                       {/* Task text */}
                       <span
-                        className={`text-[10.5px] font-sans leading-snug transition-colors ${
-                          checked
-                            ? "line-through text-neutral-600"
-                            : "text-neutral-200 group-hover/task:text-white"
-                        }`}
+                        className={`text-[10.5px] font-sans leading-snug transition-colors ${checked
+                          ? "line-through text-neutral-600"
+                          : "text-neutral-200 group-hover/task:text-white"
+                          }`}
                       >
                         {task}
                       </span>

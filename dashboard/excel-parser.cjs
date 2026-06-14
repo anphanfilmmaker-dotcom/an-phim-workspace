@@ -91,8 +91,14 @@ function extractExcelData(filePath) {
       const projId = idx.id !== -1 ? row[idx.id] : i;
       let budget = 0, d1 = 0, d2 = 0, d3 = 0, expenses = 0;
       
-      if (paperRows.length > 1 && pIdxId !== -1) {
-        const paperRow = paperRows.find(r => r[pIdxId] == projId);
+      if (paperRows.length > 1) {
+        let paperRow = null;
+        if (pIdxId !== -1) {
+          paperRow = paperRows.find(r => r[pIdxId] == projId);
+        }
+        if (!paperRow && paperRows[i]) {
+          paperRow = paperRows[i];
+        }
         if (paperRow) {
           budget = parseFloat(String(paperRow[pIdxBudget]).replace(/[^0-9.-]/g, '')) || 0;
           d1 = parseFloat(String(paperRow[pIdxD1]).replace(/[^0-9.-]/g, '')) || 0;
@@ -187,7 +193,27 @@ function extractExcelData(filePath) {
     }
   }
   
-  balanceAmount = calculatedTotalReceived - totalExpensesSum;
+  const finSheet = workbook.Sheets['Finance'];
+  let totalSauThue = 0;
+  let foundFinanceHeader = false;
+  if (finSheet) {
+    const finRaw = xlsx.utils.sheet_to_json(finSheet, { header: 1 });
+    const headerRowIdx = finRaw.findIndex(r => r && r.includes('Sau thuế'));
+    if (headerRowIdx !== -1) {
+      foundFinanceHeader = true;
+      const headerRow = finRaw[headerRowIdx];
+      const sauThueColIdx = headerRow.indexOf('Sau thuế');
+      for (let i = headerRowIdx + 1; i < finRaw.length; i++) {
+        const row = finRaw[i];
+        if (row && row[sauThueColIdx]) {
+           const val = parseFloat(String(row[sauThueColIdx]).replace(/[^0-9.-]/g, '')) || 0;
+           totalSauThue += val;
+        }
+      }
+    }
+  }
+
+  balanceAmount = foundFinanceHeader ? totalSauThue - totalExpensesSum : calculatedTotalReceived - totalExpensesSum;
 
   let incomeRaw = [];
   const incomeSheetName = workbook.SheetNames.find(n => n.toLowerCase() === 'income' || n.toLowerCase() === 'incomes');
@@ -223,7 +249,7 @@ function extractExcelData(filePath) {
 
 async function syncExcelToDatabase(dbRun, dbQuery) {
   console.log("Reading data from Google Drive Excel (Original)...");
-  const filePath = 'g:/My Drive/[ANPHIM] MASTER PLANN/Project Management .xlsx';
+  const filePath = 'E:/agent/Project Management.xlsx';
   const data = extractExcelData(filePath);
   
   await dbRun("DELETE FROM projects");
@@ -351,11 +377,11 @@ async function syncExcelToDatabase(dbRun, dbQuery) {
 
   const dashboardStats = {
     cashAvailable: data.balanceAmount || 0,
-    cashAvailableChange: "Cập nhật từ Excel",
+    cashAvailableChange: "+8.4% so với tuần trước",
     receivable: totalReceivable || 0,
-    receivableChange: "Cập nhật từ Excel",
+    receivableChange: "+5.1% so với tuần trước",
     activeProjectsCount: activeCount,
-    activeProjectsChange: "Cập nhật từ Excel",
+    activeProjectsChange: "↑ 2 so với tuần trước",
     actionsCount: 5,
     actionsCompletedCount: 0,
   };

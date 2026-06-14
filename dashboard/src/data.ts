@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { GoogleSheetDB, Project, DocumentItem, CEOAction } from "./types";
+import { GoogleSheetDB, Project, DocumentItem, CEOAction, ProjectStatus, ProjectType, ExpenseTransaction } from "./types";
+import rawExcel from "./excelData.json";
 
 // Format currency as full Vietnamese Dong: e.g. 21,600,000đ
 export function formatVND(value: number): string {
@@ -13,6 +14,124 @@ export function formatVND(value: number): string {
   const formatted = absVal.toLocaleString("vi-VN");
   return (isPositive ? "" : "-") + formatted + "đ";
 }
+
+const mappedProjects: Project[] = rawExcel.projects
+  .map((p: any, idx: number) => {
+  if (!p["Project Name"] || p["Project Name"].toString().trim() === "") return null;
+  const giayToRow = rawExcel.giayTo ? rawExcel.giayTo[idx] : null;
+  
+  let budget = 100000000;
+  let received = 0;
+  
+  if (giayToRow) {
+    budget = giayToRow["Tổng cộng"] || 0;
+    const dot1 = Number(giayToRow["Đợt 1"]) || 0;
+    const dot2 = Number(giayToRow["Đợt 2"]) || 0;
+    const dot3 = Number(giayToRow["Đợt 3"]) || 0;
+    received = dot1 + dot2 + dot3;
+    
+    // Add extra properties to p object since the mapped project is returned below
+    p.paymentD1 = dot1;
+    p.paymentD2 = dot2;
+    p.paymentD3 = dot3;
+  } else {
+    // Fallback if not found in Giấy tờ
+    received = rawExcel.income.filter((i: any) => i["Project Name"] === p["Project Name"]).reduce((sum: number, i: any) => sum + (i.Amount || 0), 0);
+    budget = received > 0 ? received * 1.2 : 100000000;
+  }
+  
+  const statusMap: Record<string, ProjectStatus> = {
+    "Hoàn thành": "Hoàn thành",
+    "Đang làm": "Đang làm",
+    "On hold": "Tạm dừng"
+  };
+
+  const projectTypeMap: Record<string, ProjectType> = {
+    "AI Render": "AI Render",
+    "Marketing": "Marketing",
+    "AI Image": "AI image",
+    "AI Film": "AI Film",
+    "Script": "Script",
+    "Graphic": "Graphic"
+  };
+
+  const status = statusMap[p["Stage Status"]] || "Chưa bắt đầu";
+  let dueDateStr = "Dec 31, 2026";
+  if (p.Due) {
+    const d = new Date(p.Due);
+    if (!isNaN(d.getTime())) dueDateStr = d.toLocaleDateString('en-US', {month: 'long', day: 'numeric', year: 'numeric'});
+  }
+
+  return {
+    id: `proj_${p.ID || idx}`,
+    name: p["Project Name"] || "Unnamed",
+    client: p.Client || "Unknown",
+    status,
+    budget,
+    received,
+    paymentD1: p.paymentD1 || 0,
+    paymentD2: p.paymentD2 || 0,
+    paymentD3: p.paymentD3 || 0,
+    dueDate: dueDateStr,
+    nextAction: p["Next Action"] || "",
+    nextActionDue: dueDateStr,
+    projectType: projectTypeMap[p.Type] || "Video",
+    milestones: [],
+    paymentPhase: "Phase 1 of 3",
+    paymentPhaseProgress: budget > 0 ? Math.round((received / budget) * 100) : 0,
+    thumbnailUrl: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=400&q=80",
+    notes: p.Notes || ""
+  };
+}).filter(Boolean) as Project[];
+
+const mappedExpenses: ExpenseTransaction[] = rawExcel.expense
+  .filter((e: any) => e.Amount || e["Vendor / Payee"] || e["Description / Note"])
+  .map((e: any, idx: number) => {
+  let dateStr = "2026-06-01";
+  if (e.Date) {
+     const d = new Date(e.Date);
+     if (!isNaN(d.getTime())) dateStr = d.toISOString().split('T')[0];
+  }
+  
+  // Standardize category strings to match our UI
+  let cat = e["Expense Category"] || "Others";
+  if (cat === "AI tools") cat = "AI Tools";
+  if (cat === "Tax / Fees") cat = "Taxe/Fees";
+  if (cat === "Office / Admin") cat = "Office/Admin";
+
+  return {
+    id: `exp_${idx}`,
+    date: dateStr,
+    category: cat,
+    project: e["Project Name"] || "Others",
+    vendor: e["Vendor / Payee"] || "",
+    description: e["Description / Note"] || "",
+    paymentMethod: e["Payment Method"] || "",
+    amount: e.Amount || 0
+  };
+});
+
+const colorPalette = [
+  "bg-emerald-500", "bg-amber-500", "bg-orange-500", 
+  "bg-indigo-500", "bg-cyan-500", "bg-purple-500", 
+  "bg-pink-500", "bg-rose-500", "bg-blue-500"
+];
+
+const categoryTotals: Record<string, number> = {};
+let totalExpensesAmt = 0;
+mappedExpenses.forEach(e => {
+  categoryTotals[e.category] = (categoryTotals[e.category] || 0) + e.amount;
+  totalExpensesAmt += e.amount;
+});
+
+const dynamicExpenses = Object.keys(categoryTotals).map((cat, idx) => {
+  return {
+    category: cat,
+    amount: categoryTotals[cat],
+    percentage: totalExpensesAmt > 0 ? Math.round((categoryTotals[cat] / totalExpensesAmt) * 100) : 0,
+    color: colorPalette[idx % colorPalette.length]
+  };
+}).sort((a, b) => b.amount - a.amount);
 
 // Initial mockup dataset based directly on the provided screenshots and company context "AN PHIM"
 export const INITIAL_SHEET_DATA: GoogleSheetDB = {
@@ -26,223 +145,7 @@ export const INITIAL_SHEET_DATA: GoogleSheetDB = {
     actionsCount: 6,
     actionsCompletedCount: 4,
   },
-  projects: [
-    {
-      id: "proj_1",
-      name: "TVC Launch Film",
-      client: "Galaxy Studio",
-      status: "Đang làm",
-      budget: 3_000_000_000,
-      received: 1_300_000_000,
-      dueDate: "May 25, 2026",
-      nextAction: "Client review due tomorrow",
-      nextActionDue: "June 7, 2026",
-      projectType: "Video",
-      milestones: [
-        { name: "Brief / Scope", date: "April 5, 2026", completed: true },
-        { name: "Pre-Production", date: "April 10, 2026", completed: true },
-        { name: "Draft idea", date: "April 15, 2026", completed: true },
-        { name: "Storyboard", date: "April 20, 2026", completed: true },
-        { name: "Production", date: "May 1, 2026", completed: true },
-        { name: "Offline", date: "May 10, 2026", completed: false },
-        { name: "Online", date: "May 15, 2026", completed: false },
-        { name: "Delivery", date: "May 20, 2026", completed: false },
-        { name: "Final / Close-out", date: "May 25, 2026", completed: false },
-      ],
-      paymentPhase: "Phase 2 of 3",
-      paymentPhaseProgress: 43,
-      thumbnailUrl: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=400&q=80",
-      notes: "Met with Galaxy production lead, they are excited about the color grade.",
-    },
-    {
-      id: "proj_2",
-      name: "Real Estate Key Visual",
-      client: "Lumière Films",
-      status: "Cần revise",
-      budget: 2_000_000_000,
-      received: 750_000_000,
-      dueDate: "June 15, 2026",
-      nextAction: "Approve revised storyboard",
-      nextActionDue: "June 8, 2026",
-      projectType: "VFX",
-      milestones: [
-        { name: "Brief / Scope", date: "May 1, 2026", completed: true },
-        { name: "Pre-Production", date: "May 10, 2026", completed: true },
-        { name: "Draft idea", date: "May 15, 2026", completed: true },
-        { name: "Storyboard", date: "May 20, 2026", completed: false },
-        { name: "Production", date: "May 25, 2026", completed: false },
-        { name: "Offline", date: "June 1, 2026", completed: false },
-        { name: "Online", date: "June 5, 2026", completed: false },
-        { name: "Delivery", date: "June 10, 2026", completed: false },
-        { name: "Final / Close-out", date: "June 15, 2026", completed: false },
-      ],
-      paymentPhase: "Phase 1 of 4",
-      paymentPhaseProgress: 38,
-      thumbnailUrl: "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=400&q=80",
-      notes: "Need to clear shoot calendar conflict by Monday morning or delay shooting by a week.",
-    },
-    {
-      id: "proj_3",
-      name: "Social Campaign Retainer",
-      client: "Blue Sky Media",
-      status: "Đang làm",
-      budget: 1_200_000_000,
-      received: 600_000_000,
-      dueDate: "June 30, 2026",
-      nextAction: "Deliver report this week",
-      nextActionDue: "June 12, 2026",
-      projectType: "Marketing",
-      milestones: [
-        { name: "Brief / Scope", date: "May 5, 2026", completed: true },
-        { name: "Pre-Production", date: "May 10, 2026", completed: true },
-        { name: "Draft idea", date: "May 15, 2026", completed: true },
-        { name: "Storyboard", date: "May 20, 2026", completed: true },
-        { name: "Production", date: "May 25, 2026", completed: true },
-        { name: "Offline", date: "June 5, 2026", completed: false },
-        { name: "Online", date: "June 15, 2026", completed: false },
-        { name: "Delivery", date: "June 25, 2026", completed: false },
-        { name: "Final / Close-out", date: "June 30, 2026", completed: false },
-      ],
-      paymentPhase: "Phase 1 of 2",
-      paymentPhaseProgress: 50,
-      thumbnailUrl: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=400&q=80",
-      notes: "Creative Agent is compiling performance logs for the previous videos.",
-    },
-    {
-      id: "proj_4",
-      name: "Shadows of Saigon",
-      client: "Galaxy Studio",
-      status: "Đang làm",
-      budget: 3_200_000_000,
-      received: 2_180_000_000,
-      dueDate: "July 15, 2026",
-      nextAction: "Review final cut with director",
-      nextActionDue: "June 22, 2026",
-      projectType: "AI Film",
-      milestones: [
-        { name: "Brief / Scope", date: "March 1, 2026", completed: true },
-        { name: "Pre-Production", date: "March 10, 2026", completed: true },
-        { name: "Draft idea", date: "March 20, 2026", completed: true },
-        { name: "Storyboard", date: "April 1, 2026", completed: true },
-        { name: "Production", date: "April 15, 2026", completed: true },
-        { name: "Offline", date: "May 10, 2026", completed: true },
-        { name: "Online", date: "June 1, 2026", completed: false },
-        { name: "Delivery", date: "June 30, 2026", completed: false },
-        { name: "Final / Close-out", date: "July 15, 2026", completed: false },
-      ],
-      paymentPhase: "Phase 3 of 4",
-      paymentPhaseProgress: 68,
-      thumbnailUrl: "https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=400&q=80",
-      notes: "Linh Tran is preparing the subtitles and audio overlays.",
-    },
-    {
-      id: "proj_5",
-      name: "Behind The Lights",
-      client: "Lumière Films",
-      status: "Tạm dừng",
-      budget: 1_800_000_000,
-      received: 760_000_000,
-      dueDate: "June 25, 2026",
-      nextAction: "Approve voiceover talent",
-      nextActionDue: "June 14, 2026",
-      projectType: "AI Render",
-      milestones: [
-        { name: "Brief / Scope", date: "April 1, 2026", completed: true },
-        { name: "Pre-Production", date: "April 10, 2026", completed: true },
-        { name: "Draft idea", date: "April 20, 2026", completed: true },
-        { name: "Storyboard", date: "May 1, 2026", completed: true },
-        { name: "Production", date: "May 15, 2026", completed: false },
-        { name: "Offline", date: "June 1, 2026", completed: false },
-        { name: "Online", date: "June 10, 2026", completed: false },
-        { name: "Delivery", date: "June 20, 2026", completed: false },
-        { name: "Final / Close-out", date: "June 25, 2026", completed: false },
-      ],
-      paymentPhase: "Phase 2 of 4",
-      paymentPhaseProgress: 42,
-      thumbnailUrl: "https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?auto=format&fit=crop&w=400&q=80",
-      notes: "Vocal artist has throat illness. Finding secondary talent. Project paused.",
-    },
-    {
-      id: "proj_6",
-      name: "The Last Horizon",
-      client: "Blue Sky Media",
-      status: "Chờ feedback",
-      budget: 2_500_000_000,
-      received: 875_000_000,
-      dueDate: "July 30, 2026",
-      nextAction: "Approve production plan draft",
-      nextActionDue: "June 20, 2026",
-      projectType: "Script",
-      milestones: [
-        { name: "Brief / Scope", date: "May 10, 2026", completed: true },
-        { name: "Pre-Production", date: "May 20, 2026", completed: true },
-        { name: "Draft idea", date: "May 30, 2026", completed: false },
-        { name: "Storyboard", date: "June 10, 2026", completed: false },
-        { name: "Production", date: "June 25, 2026", completed: false },
-        { name: "Offline", date: "July 10, 2026", completed: false },
-        { name: "Online", date: "July 20, 2026", completed: false },
-        { name: "Delivery", date: "July 25, 2026", completed: false },
-        { name: "Final / Close-out", date: "July 30, 2026", completed: false },
-      ],
-      paymentPhase: "Phase 1 of 3",
-      paymentPhaseProgress: 35,
-      thumbnailUrl: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=400&q=80",
-    },
-    {
-      id: "proj_7",
-      name: "Echoes of Silence",
-      client: "Noir Pictures",
-      status: "Đang làm",
-      budget: 1_600_000_000,
-      received: 1_200_000_000,
-      dueDate: "June 20, 2026",
-      nextAction: "Sound track approval",
-      nextActionDue: "June 11, 2026",
-      projectType: "AI image",
-      milestones: [
-        { name: "Brief / Scope", date: "April 20, 2026", completed: true },
-        { name: "Pre-Production", date: "May 1, 2026", completed: true },
-        { name: "Draft idea", date: "May 5, 2026", completed: true },
-        { name: "Storyboard", date: "May 10, 2026", completed: true },
-        { name: "Production", date: "May 20, 2026", completed: true },
-        { name: "Offline", date: "May 30, 2026", completed: true },
-        { name: "Online", date: "June 5, 2026", completed: true },
-        { name: "Delivery", date: "June 15, 2026", completed: false },
-        { name: "Final / Close-out", date: "June 20, 2026", completed: false },
-      ],
-      paymentPhase: "Phase 3 of 4",
-      paymentPhaseProgress: 75,
-      thumbnailUrl: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&w=400&q=80",
-      notes: "All deliverables aligned with standard. Sound composer completed score.",
-    },
-    {
-      id: "proj_8",
-      name: "Waves of Youth",
-      client: "Sunrise Entertainment",
-      status: "Hoàn thành",
-      budget: 950_000_000,
-      received: 950_000_000,
-      dueDate: "May 5, 2026",
-      nextAction: "All assets delivered and signed",
-      nextActionDue: "Completed",
-      projectType: "Graphic",
-      milestones: [
-        { name: "Brief / Scope", date: "March 15, 2026", completed: true },
-        { name: "Pre-Production", date: "March 20, 2026", completed: true },
-        { name: "Draft idea", date: "March 25, 2026", completed: true },
-        { name: "Storyboard", date: "April 1, 2026", completed: true },
-        { name: "Production", date: "April 15, 2026", completed: true },
-        { name: "Offline", date: "April 20, 2026", completed: true },
-        { name: "Online", date: "April 25, 2026", completed: true },
-        { name: "Delivery", date: "April 30, 2026", completed: true },
-        { name: "Final / Close-out", date: "May 5, 2026", completed: true },
-      ],
-      paymentPhase: "Phase 4 of 4",
-      paymentPhaseProgress: 100,
-      thumbnailUrl: "https://images.unsplash.com/photo-1518156677180-95a2893f3e9f?auto=format&fit=crop&w=400&q=80",
-      notes: "Completed last month. Retainer feedback loop is high.",
-    }
-  ],
+  projects: mappedProjects,
   cashFlow: [
     { id: "cf_1", label: "Mon, Jun 1", inflow: 450_000_000, outflow: 150_000_000, netProfit: 300_000_000 },
     { id: "cf_2", label: "Tue, Jun 2", inflow: 380_000_000, outflow: 120_000_000, netProfit: 260_000_000 },
@@ -252,14 +155,7 @@ export const INITIAL_SHEET_DATA: GoogleSheetDB = {
     { id: "cf_6", label: "Sat, Jun 6", inflow: 220_000_000, outflow: 90_000_000, netProfit: 130_000_000 },
     { id: "cf_7", label: "Sun, Jun 7", inflow: 980_000_000, outflow: 130_000_000, netProfit: 850_000_000 },
   ],
-  expenses: [
-    { category: "Personal", amount: 2_000_000_000, percentage: 51, color: "bg-emerald-500" },
-    { category: "Marketing", amount: 785_000_000, percentage: 20, color: "bg-amber-500" },
-    { category: "Freelancer", amount: 431_000_000, percentage: 11, color: "bg-orange-500" },
-    { category: "AI Tools", amount: 157_000_000, percentage: 4, color: "bg-indigo-500" },
-    { category: "Admin", amount: 196_000_000, percentage: 5, color: "bg-cyan-500" },
-    { category: "Others", amount: 353_000_000, percentage: 9, color: "bg-purple-500" },
-  ],
+  expenses: dynamicExpenses,
   alerts: [
     {
       id: "al_1",
@@ -495,10 +391,11 @@ export const INITIAL_SHEET_DATA: GoogleSheetDB = {
     avgResponseTimeChange: "0.4h vs last week",
     blockedTasksCount: 4,
     blockedTasksChange: "2 vs last week",
-  }
+  },
+  expenseTransactions: mappedExpenses,
 };
 
-const LOCAL_STORAGE_KEY = "anphim_os_google_sheet_data_v5";
+const LOCAL_STORAGE_KEY = "anphim_os_google_sheet_data_v16";
 
 // Retrieve DB from local storage or fall back to mock data
 export function getStoredSheetData(): GoogleSheetDB {

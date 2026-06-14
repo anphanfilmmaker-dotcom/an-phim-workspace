@@ -22,9 +22,9 @@
     "notes": "Description / Note"
   },
   "Income": {
-    "date": "Ngày",
-    "project": "Dự Án",
-    "amount": "Số Tiền",
-    "notes": "Ghi Chú"
+    "date": "Date",
+    "project": "Project Name",
+    "amount": "Amount",
+    "notes": "Description / Note"
   }
 }

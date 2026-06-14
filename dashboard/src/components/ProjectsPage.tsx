@@ -17,16 +17,90 @@ import {
   CheckCircle, 
   AlertTriangle, 
   ChevronRight,
+  ChevronDown,
   Sparkles,
   Edit2
 } from "lucide-react";
 import { translations } from "../translations";
+
+const PROJECT_TYPE_COLORS: Record<string, string> = {
+  "AI Render": "text-blue-400 bg-blue-400/10 border-blue-400/20",
+  "Marketing": "text-pink-400 bg-pink-400/10 border-pink-400/20",
+  "AI image": "text-yellow-400 bg-yellow-400/10 border-yellow-400/20",
+  "AI Film": "text-purple-400 bg-purple-400/10 border-purple-400/20",
+  "VFX": "text-orange-400 bg-orange-400/10 border-orange-400/20",
+  "Graphic": "text-teal-400 bg-teal-400/10 border-teal-400/20",
+  "Script": "text-neutral-300 bg-neutral-400/10 border-neutral-400/20",
+  "Video": "text-indigo-400 bg-indigo-400/10 border-indigo-400/20",
+  "All": "text-white bg-[#171b21] border-[#2b333c]"
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  "Chưa bắt đầu": "text-neutral-400 bg-neutral-400/10 border-neutral-400/20",
+  "Đang làm": "text-blue-400 bg-blue-400/10 border-blue-400/20",
+  "Chờ feedback": "text-amber-400 bg-amber-400/10 border-amber-400/20",
+  "Cần revise": "text-rose-400 bg-rose-400/10 border-rose-400/20",
+  "Hoàn thành": "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
+  "Tạm dừng": "text-stone-500 bg-stone-500/10 border-stone-500/20",
+  "All": "text-white bg-[#171b21] border-[#2b333c]"
+};
+
+function ColorSelect({ 
+  value, 
+  options, 
+  onChange, 
+  colorMap,
+  innerClassName = "px-3 py-2 rounded-lg border"
+}: { 
+  value: string; 
+  options: {value: string, label: string}[]; 
+  onChange: (v: string) => void;
+  colorMap: Record<string, string>;
+  innerClassName?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const colorClass = colorMap[value] || "text-white bg-[#171b21] border-[#2b333c]";
+
+  return (
+    <div className="relative">
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex items-center justify-between cursor-pointer ${colorClass} ${innerClassName}`}
+      >
+        <span className="truncate text-[10px] font-bold uppercase pr-4">{options.find(o => o.value === value)?.label || value}</span>
+        <ChevronDown className="w-3 h-3 opacity-70 shrink-0 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+      </div>
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          <div className="absolute top-full left-0 mt-1 w-full min-w-[140px] bg-[#1a1f26] border border-[#2b333c] rounded-lg shadow-xl z-50 overflow-hidden py-1">
+            {options.map(opt => {
+              const optColor = colorMap[opt.value] || "text-white";
+              const textColorClass = optColor.split(' ').find(c => c.startsWith('text-')) || "text-white";
+              const bgClass = optColor.split(' ').find(c => c.startsWith('bg-')) || "bg-transparent";
+              return (
+                <div 
+                  key={opt.value}
+                  onClick={() => { onChange(opt.value); setIsOpen(false); }}
+                  className={`px-3 py-2 text-[10px] font-bold uppercase cursor-pointer hover:bg-white/5 transition-colors ${textColorClass} ${bgClass}`}
+                >
+                  {opt.label}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 interface ProjectsPageProps {
   db: GoogleSheetDB;
   selectedProjectId: string;
   onSelectProject: (id: string) => void;
   onUpdateProjectNotes: (id: string, notes: string) => void;
+  onUpdateProject?: (p: Project) => void;
   onAddProject: (p: Project) => void;
   lang: "en" | "vi";
 }
@@ -36,6 +110,7 @@ export default function ProjectsPage({
   selectedProjectId,
   onSelectProject,
   onUpdateProjectNotes,
+  onUpdateProject,
   onAddProject,
   lang,
 }: ProjectsPageProps) {
@@ -55,13 +130,46 @@ export default function ProjectsPage({
   const [newProjType, setNewProjType] = useState<ProjectType>("Video");
   const [newProjDueDate, setNewProjDueDate] = useState(lang === "en" ? "July 30, 2026" : "Ngày 30 tháng 7, 2026");
 
-  // Filter projects list
+  // Filter and sort projects list
+  const statusWeight: Record<string, number> = {
+    "Đang làm": 1,
+    "Cần revise": 2,
+    "Chưa bắt đầu": 3,
+    "Chờ feedback": 4,
+    "Tạm dừng": 5,
+    "Hoàn thành": 6
+  };
+
+  const parseDateSafe = (dateStr: string) => {
+    if (!dateStr) return 0;
+    const dmyMatch = dateStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (dmyMatch) {
+      return new Date(parseInt(dmyMatch[3]), parseInt(dmyMatch[2]) - 1, parseInt(dmyMatch[1])).getTime();
+    }
+    const d = new Date(dateStr).getTime();
+    if (!isNaN(d)) return d;
+    const match = dateStr.match(/Ngày (\d+) tháng (\d+), (\d+)/i);
+    if (match) {
+      return new Date(parseInt(match[3]), parseInt(match[2]) - 1, parseInt(match[1])).getTime();
+    }
+    return 0;
+  };
+
   const filteredProjects = db.projects.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           p.client.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "All" || p.status === statusFilter;
     const matchesType = typeFilter === "All" || p.projectType === typeFilter;
     return matchesSearch && matchesStatus && matchesType;
+  }).sort((a, b) => {
+    const wA = statusWeight[a.status] || 99;
+    const wB = statusWeight[b.status] || 99;
+    
+    if (wA === wB && a.status === "Hoàn thành") {
+      return parseDateSafe(b.dueDate) - parseDateSafe(a.dueDate);
+    }
+    
+    return wA - wB;
   });
 
   // Current focused project
@@ -69,8 +177,14 @@ export default function ProjectsPage({
 
   // CEO notes text area state
   const [notesText, setNotesText] = useState(activeFocus?.notes || "");
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [editingMilestoneIndex, setEditingMilestoneIndex] = useState<number | null>(null);
+  const [editingMilestoneText, setEditingMilestoneText] = useState("");
   React.useEffect(() => {
     setNotesText(activeFocus?.notes || "");
+    setIsEditingNotes(false);
+    setEditingMilestoneIndex(null);
+    setEditingMilestoneText("");
   }, [activeFocus]);
 
   // Aggregate project statistics
@@ -82,8 +196,74 @@ export default function ProjectsPage({
   const handleSaveNotes = () => {
     if (activeFocus) {
       onUpdateProjectNotes(activeFocus.id, notesText);
-      alert(lang === "en" ? "CEO project notes saved successfully!" : "Đã lưu chỉ đạo ghi chú của CEO!");
+      setIsEditingNotes(false);
+      alert(lang === "en" ? "Project notes saved successfully!" : "Đã lưu ghi chú!");
     }
+  };
+
+  const handleToggleMilestone = (index: number) => {
+    if (!onUpdateProject || !activeFocus) return;
+    const updated = { ...activeFocus };
+    updated.milestones = [...updated.milestones];
+    updated.milestones[index] = { 
+      ...updated.milestones[index], 
+      completed: !updated.milestones[index].completed 
+    };
+
+    // Auto-update status based on milestones completion
+    const allCompleted = updated.milestones.length > 0 && updated.milestones.every(m => m.completed);
+    if (allCompleted) {
+      updated.status = "Hoàn thành";
+    } else if (updated.status === "Hoàn thành") {
+      updated.status = "Đang làm";
+    }
+
+    onUpdateProject(updated);
+  };
+
+  const handleEditMilestone = (index: number) => {
+    if (!onUpdateProject || !activeFocus) return;
+    setEditingMilestoneIndex(index);
+    setEditingMilestoneText(activeFocus.milestones[index].name);
+  };
+
+  const handleSaveMilestone = (index: number) => {
+    if (!onUpdateProject || !activeFocus) {
+      setEditingMilestoneIndex(null);
+      return;
+    }
+    const newName = editingMilestoneText.trim();
+    if (newName !== "" && newName !== activeFocus.milestones[index].name) {
+      const updated = { ...activeFocus };
+      updated.milestones = [...updated.milestones];
+      updated.milestones[index] = { 
+        ...updated.milestones[index], 
+        name: newName 
+      };
+      onUpdateProject(updated);
+    }
+    setEditingMilestoneIndex(null);
+  };
+
+  const handleEditDeadline = () => {
+    if (!onUpdateProject || !activeFocus) return;
+    const newDate = window.prompt(lang === "en" ? "Edit deadline:" : "Sửa Deadline:", String(activeFocus.dueDate || ""));
+    if (newDate !== null) {
+      const updated = { ...activeFocus, dueDate: newDate.trim() };
+      onUpdateProject(updated);
+    }
+  };
+
+  const handleTypeChange = (value: string) => {
+    if (!onUpdateProject || !activeFocus) return;
+    const updated = { ...activeFocus, projectType: value as ProjectType };
+    onUpdateProject(updated);
+  };
+
+  const handleStatusChange = (value: string) => {
+    if (!onUpdateProject || !activeFocus) return;
+    const updated = { ...activeFocus, status: value as ProjectStatus };
+    onUpdateProject(updated);
   };
 
   const handleCreateProject = (e: React.FormEvent) => {
@@ -182,11 +362,11 @@ export default function ProjectsPage({
       </div>
 
       {/* Filter bar controller */}
-      <div className="bg-[#121417] p-4 rounded-xl border border-[#1e2329]/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
         
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-3.5 text-neutral-450" />
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-450" />
             <input
               type="text"
               placeholder={t.searchProjects}
@@ -196,35 +376,37 @@ export default function ProjectsPage({
             />
           </div>
 
-          <select
+          <ColorSelect 
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-[#171b21] text-[10px] font-mono text-neutral-350 rounded-lg border border-[#2b333c] px-3 py-2 outline-none cursor-pointer"
-          >
-            <option value="All">{t.allStatus}</option>
-            <option value="Chưa bắt đầu">Chưa bắt đầu</option>
-            <option value="Đang làm">Đang làm</option>
-            <option value="Chờ feedback">Chờ feedback</option>
-            <option value="Cần revise">Cần revise</option>
-            <option value="Hoàn thành">Hoàn thành</option>
-            <option value="Tạm dừng">Tạm dừng</option>
-          </select>
+            onChange={setStatusFilter}
+            colorMap={STATUS_COLORS}
+            options={[
+              { value: "All", label: t.allStatus },
+              { value: "Chưa bắt đầu", label: "Chưa bắt đầu" },
+              { value: "Đang làm", label: "Đang làm" },
+              { value: "Chờ feedback", label: "Chờ feedback" },
+              { value: "Cần revise", label: "Cần revise" },
+              { value: "Hoàn thành", label: "Hoàn thành" },
+              { value: "Tạm dừng", label: "Tạm dừng" }
+            ]}
+          />
 
-          <select
+          <ColorSelect 
             value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="bg-[#171b21] text-[10px] font-mono text-neutral-350 rounded-lg border border-[#2b333c] px-3 py-2 outline-none cursor-pointer"
-          >
-            <option value="All">{t.allType}</option>
-            <option value="AI Render">AI Render</option>
-            <option value="Marketing">Marketing</option>
-            <option value="AI image">AI image</option>
-            <option value="AI Film">AI Film</option>
-            <option value="VFX">VFX</option>
-            <option value="Graphic">Graphic</option>
-            <option value="Script">Script</option>
-            <option value="Video">Video</option>
-          </select>
+            onChange={setTypeFilter}
+            colorMap={PROJECT_TYPE_COLORS}
+            options={[
+              { value: "All", label: t.allType },
+              { value: "AI Render", label: "AI Render" },
+              { value: "Marketing", label: "Marketing" },
+              { value: "AI image", label: "AI image" },
+              { value: "AI Film", label: "AI Film" },
+              { value: "VFX", label: "VFX" },
+              { value: "Graphic", label: "Graphic" },
+              { value: "Script", label: "Script" },
+              { value: "Video", label: "Video" }
+            ]}
+          />
         </div>
 
         <button
@@ -232,7 +414,7 @@ export default function ProjectsPage({
           className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-sans font-bold px-4 py-2.5 rounded-lg flex items-center justify-center space-x-2 transition cursor-pointer shadow-lg shadow-emerald-950/20 shrink-0"
         >
           <Plus className="w-4 h-4" />
-          <span>{lang === "en" ? "Register Film Project" : "Nhập Dự Án Điện Ảnh Mới"}</span>
+          <span>{lang === "en" ? "Register Project" : "Nhập Dự Án Mới"}</span>
         </button>
 
       </div>
@@ -244,90 +426,101 @@ export default function ProjectsPage({
         <div className="lg:col-span-8 space-y-4">
           <div className="flex justify-between items-center text-[10px] font-mono text-neutral-400 px-1 leading-none uppercase">
             <span>{lang === "en" ? `SHOWING ${filteredProjects.length} OUT OF ${db.projects.length} PROJECTS` : `HIỂN THỊ ${filteredProjects.length} TRÊN ${db.projects.length} DỰ ÁN`}</span>
-            <span>{lang === "en" ? "CLICK TO FOCUS IN SIDE DETAILS PANEL" : "CHỌN DỰ ÁN ĐỂ XEM CHI TIẾT SỔ CÁI"}</span>
+            <span>{lang === "en" ? "CLICK TO VIEW DETAILS >>>" : "XEM CHI TIẾT >>>"}</span>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-1.5">
             {filteredProjects.map((p) => {
               const remainsVal = p.budget - p.received;
               const isSelected = activeFocus?.id === p.id;
               const payPercent = Math.min(100, Math.round((p.received / p.budget) * 100));
+              const isCompleted = p.status === "Hoàn thành";
+              const completedTasks = p.milestones ? p.milestones.filter(m => m.completed).length : 0;
+              const totalTasks = p.milestones ? p.milestones.length : 0;
+              const taskProgress = isCompleted ? 100 : (totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0);
 
               return (
                 <div
                   key={p.id}
                   onClick={() => onSelectProject(p.id)}
-                  className={`bg-[#121417] rounded-xl p-4 border transition cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                  className={`relative overflow-hidden rounded-xl p-3 pb-2.5 border transition cursor-pointer flex flex-col gap-2.5 ${
                     isSelected 
                       ? "border-emerald-500 bg-gradient-to-r from-[#121417] to-emerald-950/10 shadow-lg shadow-emerald-950/5" 
-                      : "border-[#1e2329]/80 hover:border-neutral-700 hover:bg-[#15191e]"
+                      : "bg-[#121417] border-[#1e2329]/80 hover:border-neutral-700 hover:bg-[#15191e]"
                   }`}
                 >
-                  <div className="flex items-center space-x-3.5 min-w-0">
-                    <div className="w-14 h-14 bg-neutral-900 border border-neutral-800 rounded-lg overflow-hidden shrink-0 relative">
-                      {p.thumbnailUrl && (
-                        <img 
-                          src={p.thumbnailUrl} 
-                          alt={p.name} 
-                          referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover opacity-70"
-                        />
-                      )}
-                      <div className="absolute inset-0 bg-black/30" />
+                  {p.status === "Hoàn thành" && (
+                    <div className="absolute inset-0 bg-emerald-900/40 pointer-events-none z-10" />
+                  )}
+                  
+                  {/* Main content row */}
+                  <div className="relative z-0 flex flex-col md:flex-row md:items-center justify-between gap-3 w-full">
+                    <div className="flex items-center space-x-3.5 min-w-0">
+                      <div className="w-14 h-14 bg-neutral-900 border border-neutral-800 rounded-lg overflow-hidden shrink-0 relative">
+                        {p.thumbnailUrl && (
+                          <img 
+                            src={p.thumbnailUrl} 
+                            alt={p.name} 
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover opacity-70"
+                          />
+                        )}
+                        <div className="absolute inset-0 bg-black/30" />
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                          {/* Client Tag */}
+                          <span className="text-[10px] font-mono font-extrabold px-1.5 py-0.2 rounded uppercase bg-blue-950/40 text-blue-400 border border-blue-900">
+                            {p.client}
+                          </span>
+                          {/* Type Tag */}
+                          <span className={`text-[10px] font-mono font-extrabold px-1.5 py-0.5 rounded uppercase border ${PROJECT_TYPE_COLORS[p.projectType] || "text-white bg-neutral-800 border-neutral-700"}`}>
+                            {p.projectType}
+                          </span>
+                          {/* Status Tag */}
+                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-extrabold uppercase border ${STATUS_COLORS[p.status] || "text-white bg-neutral-800 border-neutral-700"}`}>
+                            {p.status}
+                          </span>
+                        </div>
+                        <h4 className="text-xs font-sans font-semibold text-white tracking-tight truncate mt-1">
+                          {p.name}
+                        </h4>
+                        <div className="flex items-center space-x-1.5 mt-0.5 text-orange-400">
+                          <Clock className="w-3 h-3 shrink-0" />
+                          <p className="text-[10px] font-medium truncate leading-relaxed">
+                            {lang === "en" ? "Next action: " : "Next action: "}{p.nextAction}
+                          </p>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="min-w-0">
-                      <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                        {/* Client Tag */}
-                        <span className="text-[10px] font-mono font-extrabold px-1.5 py-0.2 rounded uppercase bg-blue-950/40 text-blue-400 border border-blue-900">
-                          {p.client}
+                    <div className="flex items-center space-x-5 shrink-0 border-t border-neutral-800/65 md:border-t-0 pt-3 md:pt-0">
+                      
+                      <div className="text-right">
+                        <span className="block text-[10px] font-mono text-neutral-500 uppercase">{t.received}</span>
+                        <span className="block text-[11px] font-mono font-bold text-white mt-0.5">
+                          {formatVND(p.received)}
                         </span>
-                        {/* Type Tag */}
-                        <span className="text-[10px] font-mono font-extrabold px-1.5 py-0.2 rounded uppercase bg-purple-950/40 text-purple-400 border border-purple-900">
-                          {p.projectType}
-                        </span>
-                        {/* Status Tag */}
-                        <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-extrabold uppercase ${
-                          p.status === "Đang làm" || p.status === "Hoàn thành"
-                            ? "bg-emerald-950/40 text-emerald-400 border border-emerald-900"
-                            : p.status === "Cần revise" || p.status === "Tạm dừng"
-                            ? "bg-orange-950/40 text-orange-400 border border-orange-900 animate-pulse"
-                            : p.status === "Chờ feedback"
-                            ? "bg-cyan-950/40 text-cyan-400 border border-cyan-900"
-                            : "bg-neutral-800 text-neutral-450 border border-neutral-750"
-                        }`}>
-                          {p.status}
+                        <span className="block text-[10px] text-neutral-400 font-mono mt-0.5">
+                          {payPercent}% đã thu / {formatVND(p.budget)}
                         </span>
                       </div>
-                      <h4 className="text-xs font-sans font-semibold text-white tracking-tight truncate mt-1">
-                        {p.name}
-                      </h4>
-                      <p className="text-[10px] text-neutral-450 truncate mt-0.5 leading-relaxed">
-                        {lang === "en" ? "Next: " : "Tiến trình sau: "}{p.nextAction}
-                      </p>
+
+                      <div className="text-right">
+                        <span className="block text-[10px] font-mono text-neutral-500 uppercase">{t.dueDate}</span>
+                        <span className="block text-[11px] text-neutral-200 mt-1 flex items-center justify-end font-mono">
+                          <Calendar className="w-3.5 h-3.5 text-emerald-400 mr-1" />
+                          <span>{formatDueDate(p.dueDate)}</span>
+                        </span>
+                      </div>
+
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-5 shrink-0 border-t border-neutral-800/65 md:border-t-0 pt-3 md:pt-0">
-                    
-                    <div className="text-right">
-                      <span className="block text-[10px] font-mono text-neutral-500 uppercase">{t.received}</span>
-                      <span className="block text-[11px] font-mono font-bold text-white mt-0.5">
-                        {formatVND(p.received)}
-                      </span>
-                      <span className="block text-[10px] text-neutral-400 font-mono mt-0.5">
-                        {payPercent}% đã thu / {formatVND(p.budget)}
-                      </span>
-                    </div>
-
-                    <div className="text-right">
-                      <span className="block text-[10px] font-mono text-neutral-500 uppercase">{t.dueDate}</span>
-                      <span className="block text-[11px] text-neutral-200 mt-1 flex items-center justify-end font-mono">
-                        <Calendar className="w-3.5 h-3.5 text-emerald-400 mr-1" />
-                        <span>{formatDueDate(p.dueDate)}</span>
-                      </span>
-                    </div>
-
+                  {/* Task progress bar below content */}
+                  <div className="w-full h-[3px] bg-neutral-800 rounded-full overflow-hidden relative z-0">
+                    <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${taskProgress}%` }} />
                   </div>
                 </div>
               );
@@ -380,18 +573,77 @@ export default function ProjectsPage({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3.5 text-left pt-2.5 border-t border-neutral-800/40">
-                  <div>
+                <div className="grid grid-cols-3 gap-2 text-left pt-2.5 border-t border-neutral-800/40">
+                  <div className="min-w-0">
                     <span className="block text-[10px] text-neutral-500 uppercase">Deadline</span>
-                    <strong className="block text-neutral-300 text-[11px] mt-0.5 leading-none">
-                      {activeFocus.dueDate}
-                    </strong>
+                    <div className="flex items-center space-x-1 mt-0.5 relative group">
+                      <input
+                        type="date"
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                        onClick={(e) => {
+                          try {
+                            if ('showPicker' in HTMLInputElement.prototype) {
+                              e.currentTarget.showPicker();
+                            }
+                          } catch (err) {}
+                        }}
+                        value={(() => {
+                           const parsed = parseDateSafe(activeFocus.dueDate);
+                           if (!parsed) return "";
+                           const d = new Date(parsed);
+                           return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                        })()}
+                        onChange={(e) => {
+                           const newDate = e.target.value;
+                           if (newDate && onUpdateProject && activeFocus) {
+                              const d = new Date(newDate);
+                              const formatted = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+                              const updated = { ...activeFocus, dueDate: formatted };
+                              onUpdateProject(updated);
+                           }
+                        }}
+                      />
+                      <strong className="block text-neutral-300 text-[11px] leading-none truncate group-hover:text-emerald-400 transition-colors" title={String(activeFocus.dueDate || "")}>
+                        {activeFocus.dueDate}
+                      </strong>
+                      <Edit2 className="w-3 h-3 text-neutral-500 group-hover:text-emerald-400 shrink-0" />
+                    </div>
                   </div>
-                  <div>
-                    <span className="block text-[10px] text-neutral-500 uppercase">{t.projectTypeLabel}</span>
-                    <strong className="block text-[11px] mt-0.5 leading-none font-bold uppercase text-purple-400">
-                      {activeFocus.projectType}
-                    </strong>
+                  <div className="min-w-0">
+                    <span className="block text-[10px] text-neutral-500 uppercase truncate">{t.projectTypeLabel}</span>
+                    <ColorSelect 
+                      value={activeFocus.projectType}
+                      onChange={handleTypeChange}
+                      colorMap={PROJECT_TYPE_COLORS}
+                      innerClassName="px-2 py-1 mt-0.5 rounded border"
+                      options={[
+                        { value: "AI Render", label: "AI Render" },
+                        { value: "Marketing", label: "Marketing" },
+                        { value: "AI image", label: "AI image" },
+                        { value: "AI Film", label: "AI Film" },
+                        { value: "VFX", label: "VFX" },
+                        { value: "Graphic", label: "Graphic" },
+                        { value: "Script", label: "Script" },
+                        { value: "Video", label: "Video" }
+                      ]}
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="block text-[10px] text-neutral-500 uppercase truncate">{t.status}</span>
+                    <ColorSelect 
+                      value={activeFocus.status}
+                      onChange={handleStatusChange}
+                      colorMap={STATUS_COLORS}
+                      innerClassName="px-2 py-1 mt-0.5 rounded border"
+                      options={[
+                        { value: "Chưa bắt đầu", label: "Chưa bắt đầu" },
+                        { value: "Đang làm", label: "Đang làm" },
+                        { value: "Chờ feedback", label: "Chờ feedback" },
+                        { value: "Cần revise", label: "Cần revise" },
+                        { value: "Hoàn thành", label: "Hoàn thành" },
+                        { value: "Tạm dừng", label: "Tạm dừng" }
+                      ]}
+                    />
                   </div>
                 </div>
 
@@ -441,52 +693,113 @@ export default function ProjectsPage({
                 )}
 
                 <div className={activeFocus.status === "Hoàn thành" ? "opacity-50 line-through grayscale" : ""}>
-                  <span className="block text-[10px] font-mono text-neutral-500 uppercase mb-2">{t.milestones}</span>
+                  <span className="block text-[10px] font-mono text-neutral-500 uppercase mb-2">PRODUCTION MILESTONES</span>
                   <div className="space-y-2 text-[10px] font-mono">
-                    {activeFocus.milestones.map((ms, index) => (
-                      <div key={index} className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <div className={`w-1.5 h-1.5 rounded-full ${ms.completed ? "bg-[#10B981]" : "bg-neutral-700"}`} />
-                          <span className={ms.completed ? "text-neutral-400 line-through truncate max-w-[170px]" : "text-white font-medium truncate max-w-[170px]"}>
-                            {ms.name}
-                          </span>
+                    {activeFocus.milestones.map((ms, index) => {
+                      const isMsCompleted = activeFocus.status === "Hoàn thành" || ms.completed;
+                      const isEditing = editingMilestoneIndex === index;
+                      return (
+                      <div key={index} className="flex items-center justify-between group">
+                        <div 
+                          className="flex items-center space-x-2 flex-1 min-w-0"
+                        >
+                          <div 
+                            className={`w-3 h-3 shrink-0 rounded-full border border-neutral-600 flex items-center justify-center transition-colors cursor-pointer ${isMsCompleted ? "bg-[#10B981] border-[#10B981]" : "bg-[#171b21] hover:border-emerald-500"}`}
+                            onClick={() => handleToggleMilestone(index)}
+                          >
+                            {isMsCompleted && <CheckCircle className="w-2 h-2 text-[#121417]" />}
+                          </div>
+                          {isEditing ? (
+                            <input
+                              autoFocus
+                              type="text"
+                              className="flex-1 bg-[#171b21] border border-emerald-500/50 rounded px-1.5 py-0.5 text-[10px] text-white focus:outline-none focus:border-emerald-500 min-w-0"
+                              value={editingMilestoneText}
+                              onChange={(e) => setEditingMilestoneText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleSaveMilestone(index);
+                                if (e.key === "Escape") setEditingMilestoneIndex(null);
+                              }}
+                              onBlur={() => handleSaveMilestone(index)}
+                            />
+                          ) : (
+                            <span 
+                              className={`cursor-pointer ${isMsCompleted ? "text-neutral-400 line-through truncate" : "text-white font-medium truncate"}`}
+                              onClick={() => handleToggleMilestone(index)}
+                            >
+                              {ms.name}
+                            </span>
+                          )}
                         </div>
-                        <span className="text-[10px] text-neutral-500">{ms.date ? ms.date.split(',')[0] : ""}</span>
+                        <div className="flex items-center space-x-2 shrink-0 ml-2">
+                          {!isEditing && (
+                            <button 
+                              onClick={() => handleEditMilestone(index)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-neutral-500 hover:text-emerald-400 cursor-pointer"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                            </button>
+                          )}
+                          <span className="text-[10px] text-neutral-500">{ms.date ? ms.date.split(',')[0] : ""}</span>
+                        </div>
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 </div>
 
-                {activeFocus.notes && (
+                {activeFocus.notes && !isEditingNotes && (
                   <div className="bg-[#171b21] border border-[#232a32] p-3 rounded-lg text-xs leading-relaxed text-neutral-300 flex items-start space-x-2">
-                    <Edit2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                    <button 
+                      onClick={() => setIsEditingNotes(true)}
+                      className="text-neutral-500 hover:text-emerald-400 cursor-pointer shrink-0 mt-0.5"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
                     <div>
-                      <span className="block font-bold text-neutral-400 text-[10px] uppercase mb-1">{t.projectNotes}</span>
+                      <span className="block font-bold text-neutral-400 text-[10px] uppercase mb-1">
+                        {lang === "en" ? "Notes" : "Ghi chú"}
+                      </span>
                       <p className="text-[10px] text-neutral-350">{activeFocus.notes}</p>
                     </div>
                   </div>
                 )}
 
-                <div className="border-t border-neutral-800/60 pt-3">
-                  <label className="block text-[10px] font-mono text-neutral-500 uppercase mb-2">
-                    {t.ceoPrivateNotes}
-                  </label>
-                  <textarea
-                    value={notesText}
-                    onChange={(e) => setNotesText(e.target.value)}
-                    placeholder={t.writeCeoNotes}
-                    className="w-full h-20 bg-[#171b21] p-2 text-[10px] font-sans text-neutral-300 rounded border border-[#232a32] focus:border-[#10B981] outline-none resize-none leading-relaxed"
-                  />
-                  <div className="flex justify-end mt-1.5">
-                    <button
-                      onClick={handleSaveNotes}
-                      className="px-3 py-1 bg-[#10B981] hover:bg-emerald-400 text-neutral-900 text-[10px] font-mono font-bold rounded flex items-center space-x-1 cursor-pointer transition"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-neutral-900" />
-                      <span>{t.saveNotes}</span>
-                    </button>
+                {(!activeFocus.notes || isEditingNotes) && (
+                  <div className="border-t border-neutral-800/60 pt-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-[10px] font-mono text-neutral-500 uppercase">
+                        {lang === "en" ? "Notes" : "Ghi chú"}
+                      </label>
+                      {activeFocus.notes && isEditingNotes && (
+                        <button 
+                          onClick={() => {
+                            setIsEditingNotes(false);
+                            setNotesText(activeFocus.notes || "");
+                          }}
+                          className="text-[10px] text-neutral-500 hover:text-neutral-300"
+                        >
+                          Hủy
+                        </button>
+                      )}
+                    </div>
+                    <textarea
+                      value={notesText}
+                      onChange={(e) => setNotesText(e.target.value)}
+                      placeholder={lang === "en" ? "Enter notes here..." : "Nhập ghi chú tại đây..."}
+                      className="w-full h-20 bg-[#171b21] p-2 text-[10px] font-sans text-neutral-300 rounded border border-[#232a32] focus:border-[#10B981] outline-none resize-none leading-relaxed"
+                    />
+                    <div className="flex justify-end mt-1.5">
+                      <button
+                        onClick={handleSaveNotes}
+                        className="px-3 py-1 bg-[#10B981] hover:bg-emerald-400 text-neutral-900 text-[10px] font-mono font-bold rounded flex items-center space-x-1 cursor-pointer transition"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-neutral-900" />
+                        <span>{lang === "en" ? "Save Notes" : "Lưu ghi chú"}</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
 
               </div>
 

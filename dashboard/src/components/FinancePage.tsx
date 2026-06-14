@@ -6,14 +6,14 @@
 import React, { useState } from "react";
 import { GoogleSheetDB, Project, FinanceAlert } from "../types";
 import { formatVND } from "../data";
-import { 
-  DollarSign, 
-  ArrowUpRight, 
-  ArrowDownRight, 
-  TrendingUp, 
-  AlertOctagon, 
-  PieChart, 
-  Clock, 
+import {
+  DollarSign,
+  ArrowUpRight,
+  ArrowDownRight,
+  TrendingUp,
+  AlertOctagon,
+  PieChart,
+  Clock,
   CheckCircle,
   FileText,
   BadgeAlert
@@ -38,14 +38,20 @@ export default function FinancePage({
   const [timescale, setTimescale] = useState<"week" | "month" | "quarter">("week");
   const [hoveredCf, setHoveredCf] = useState<any>(null);
 
+  // Filters for Expense Details
+  const [filterMonth, setFilterMonth] = React.useState("All");
+  const [filterProject, setFilterProject] = React.useState("All");
+  const [filterCategory, setFilterCategory] = React.useState("All");
+  const [filterPaymentMethod, setFilterPaymentMethod] = React.useState("All");
+
   const monthlyCashFlow = React.useMemo(() => {
     const map = new Map();
     const monthOrder = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     db.cashFlow.forEach(cf => {
       const monthEng = cf.label.split(' ')[0];
-      const monthMap = { "Jan":"Thg 1", "Feb":"Thg 2", "Mar":"Thg 3", "Apr":"Thg 4", "May":"Thg 5", "Jun":"Thg 6", "Jul":"Thg 7", "Aug":"Thg 8", "Sep":"Thg 9", "Oct":"Thg 10", "Nov":"Thg 11", "Dec":"Thg 12" };
+      const monthMap = { "Jan": "Thg 1", "Feb": "Thg 2", "Mar": "Thg 3", "Apr": "Thg 4", "May": "Thg 5", "Jun": "Thg 6", "Jul": "Thg 7", "Aug": "Thg 8", "Sep": "Thg 9", "Oct": "Thg 10", "Nov": "Thg 11", "Dec": "Thg 12" };
       const mLabel = lang === "en" ? monthEng : (monthMap[monthEng] || monthEng);
-      
+
       const existing = map.get(monthEng) || { inflow: 0, outflow: 0, netProfit: 0, label: mLabel };
       existing.inflow += cf.inflow;
       existing.outflow += cf.outflow;
@@ -86,21 +92,21 @@ export default function FinancePage({
       : quarterlyCashFlow;
 
   const totalReceivable = db.projects
-    .filter(p => p.status !== "Completed")
+    .filter(p => p.status !== "Hoàn thành")
     .reduce((sum, p) => sum + (p.budget - p.received), 0);
 
   const totalExpense = db.expenses.reduce((sum, e) => sum + e.amount, 0);
-  
+
   const estimatedProfit = db.projects.reduce((sum, p) => sum + p.budget, 0) - totalExpense;
 
   const receivablesList = db.projects
     .filter((p) => p.budget > p.received)
     .map((p) => {
       const outstanding = p.budget - p.received;
-      
+
       let statusText = lang === "en" ? "Due in 9 days" : "Hạn chót sau 9 ngày";
       let statusColor = "text-orange-400 bg-orange-950/20 border-orange-900";
-      
+
       if (p.id === "proj_1") {
         statusText = lang === "en" ? "Overdue" : "Quá hạn nộp";
         statusColor = "text-red-400 bg-red-950/30 border-red-900 animate-pulse";
@@ -127,7 +133,7 @@ export default function FinancePage({
         statusText,
         statusColor,
         thumbnailUrl: p.thumbnailUrl,
-        progress: Math.round((p.received / p.budget) * 100),
+        progress: p.budget > 0 ? Math.round((p.received / p.budget) * 100) : 0,
       };
     });
 
@@ -152,15 +158,7 @@ export default function FinancePage({
   }
 
   const translateCategory = (cat: string) => {
-    if (lang === "en") return cat;
-    const map: Record<string, string> = {
-      "Production": "Sản xuất Phim",
-      "Freelancer": "Nhân sự Ngoài",
-      "AI Tools": "Công cụ AI Core",
-      "Admin": "Sự vụ hành chính",
-      "Others": "Danh mục khác"
-    };
-    return map[cat] || cat;
+    return cat;
   };
 
   const translateAlertType = (type: string) => {
@@ -173,12 +171,131 @@ export default function FinancePage({
     return map[type] || type;
   };
 
-  return (
-    <div className="space-y-6 animate-fade-in text-white">
+  // -------------------------
+  // EXPENSE DETAILS DERIVATIONS
+  // -------------------------
+  const rawExpenses = db.expenseTransactions || [];
+
+  const expenseComparison = React.useMemo(() => {
+    if (rawExpenses.length === 0) return null;
+    const allDates = rawExpenses.map(e => new Date(e.date).getTime());
+    const maxDate = new Date(Math.max(...allDates));
+    
+    const last7DaysStart = new Date(maxDate);
+    last7DaysStart.setDate(maxDate.getDate() - 7);
+    
+    const prev7DaysStart = new Date(last7DaysStart);
+    prev7DaysStart.setDate(last7DaysStart.getDate() - 7);
+
+    let currWeekTotal = 0;
+    let prevWeekTotal = 0;
+
+    rawExpenses.forEach(e => {
+      const d = new Date(e.date);
+      if (d > last7DaysStart && d <= maxDate) {
+        currWeekTotal += e.amount;
+      } else if (d > prev7DaysStart && d <= last7DaysStart) {
+        prevWeekTotal += e.amount;
+      }
+    });
+
+    if (prevWeekTotal === 0) return null;
+
+    const diffPercent = ((currWeekTotal - prevWeekTotal) / prevWeekTotal) * 100;
+    const isUp = diffPercent > 0;
+    const absDiff = Math.abs(diffPercent).toFixed(1);
+    
+    const textStr = lang === "en" 
+      ? `${isUp ? 'Up' : 'Down'} ${absDiff}% vs last week`
+      : `${isUp ? 'Tăng' : 'Giảm'} ${absDiff}% so với tuần trước`;
       
+    const colorClass = isUp ? 'text-red-400' : 'text-[#10B981]';
+      
+    return { text: textStr, colorClass };
+  }, [rawExpenses, lang]);
+
+  const availableCategories = React.useMemo(() => {
+    return Array.from(new Set(rawExpenses.map(e => e.category))).sort();
+  }, [rawExpenses]);
+
+  const availablePaymentMethods = React.useMemo(() => {
+    return Array.from(new Set(rawExpenses.map(e => e.paymentMethod).filter(Boolean))).sort();
+  }, [rawExpenses]);
+
+  const categoryColors = React.useMemo(() => {
+    const map: Record<string, string> = {};
+    db.expenses.forEach(e => {
+      map[e.category] = e.color;
+    });
+    return map;
+  }, [db.expenses]);
+
+  const availableMonths = React.useMemo(() => {
+    const m = new Set<string>();
+    rawExpenses.forEach(e => {
+      if (e.date) {
+        // e.date is like "2026-06-01"
+        const monthStr = e.date.substring(0, 7); // "2026-06"
+        m.add(monthStr);
+      }
+    });
+    return Array.from(m).sort((a, b) => b.localeCompare(a));
+  }, [rawExpenses]);
+
+  const availableProjects = React.useMemo(() => {
+    const pList = new Set<string>();
+    db.projects.forEach(p => pList.add(p.name));
+    pList.add("Cá nhân");
+    pList.add("Công ty");
+    // also add any from raw expenses just in case
+    rawExpenses.forEach(e => {
+      if (e.project) pList.add(e.project);
+    });
+    return Array.from(pList).sort();
+  }, [db.projects, rawExpenses]);
+
+  const filteredExpenses = React.useMemo(() => {
+    return rawExpenses.filter((exp) => {
+      if (filterMonth !== "All" && exp.date && !exp.date.startsWith(filterMonth)) return false;
+      if (filterProject !== "All" && exp.project !== filterProject) return false;
+      if (filterCategory !== "All" && exp.category !== filterCategory) return false;
+      if (filterPaymentMethod !== "All" && exp.paymentMethod !== filterPaymentMethod) return false;
+      return true;
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [rawExpenses, filterMonth, filterProject, filterCategory, filterPaymentMethod]);
+
+  const pieExpenses = React.useMemo(() => {
+    const colorPalette = [
+      "bg-emerald-500", "bg-amber-500", "bg-orange-500", 
+      "bg-indigo-500", "bg-cyan-500", "bg-purple-500", 
+      "bg-pink-500", "bg-rose-500", "bg-blue-500"
+    ];
+    
+    const categoryTotals: Record<string, number> = {};
+    let totalAmt = 0;
+    filteredExpenses.forEach(e => {
+      categoryTotals[e.category] = (categoryTotals[e.category] || 0) + e.amount;
+      totalAmt += e.amount;
+    });
+
+    return Object.keys(categoryTotals).map((cat, idx) => {
+      return {
+        category: cat,
+        amount: categoryTotals[cat],
+        percentage: totalAmt > 0 ? Math.round((categoryTotals[cat] / totalAmt) * 100) : 0,
+        color: colorPalette[idx % colorPalette.length]
+      };
+    }).sort((a, b) => b.amount - a.amount);
+  }, [filteredExpenses]);
+
+  const pieTotalExpense = pieExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+  return (
+    <div className="space-y-2 animate-fade-in text-white">
+
       {/* Top summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+
         {/* Cash Available */}
         <div className="bg-[#121417] border border-[#1e2329]/80 rounded-xl p-4 flex flex-col justify-between">
           <div className="flex justify-between items-start">
@@ -251,17 +368,13 @@ export default function FinancePage({
           <div>
             <h3 className="text-sm font-sans font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
               <TrendingUp className="w-4 h-4 text-emerald-400" />
-              <span>{t.weeklyNetLedger}</span>
+              <span>{lang === "en" ? "CASH FLOW TRACKING" : "THEO DÕI DÒNG TIỀN"}</span>
             </h3>
-            <p className="text-[10px] text-neutral-450 mt-1 leading-snug">
-              {timescale === "week" 
-                ? (lang === "en" ? "Weekly stream analysis indicating project milestone clearances." : "Dòng tiền hàng tuần: Phân tích tiền cọc nhận được và chi phí sản xuất phim")
-                : timescale === "month"
-                  ? (lang === "en" ? "Cumulative record of contract inflows and media expenditures." : "Dòng tiền hàng tháng: Tổng hợp các hợp đồng phim và chi phí studio tích lũy")
-                  : (lang === "en" ? "Financial quarterly sheet on return of investment and overheads." : "Dòng tiền hàng quý: Báo cáo tài chính quý về các khoản đầu tư và biên lợi nhuận")}
+            <p className="text-[10px] text-neutral-450 mt-1 leading-snug italic ml-[22px]">
+              {lang === "en" ? "Analysis of received cash flow and expenses" : "Phân tích dòng tiền nhận được và chi phí"}
             </p>
           </div>
-          
+
           <div className="flex flex-wrap items-center gap-4 shrink-0">
             {/* Timescale selector tab */}
             <div className="flex items-center bg-[#171b21] p-0.5 rounded-lg border border-[#232a32] text-[9px] font-mono font-bold select-none">
@@ -307,8 +420,8 @@ export default function FinancePage({
         </div>
 
         {/* Responsive inline SVG */}
-        <div className="h-44 w-full relative pt-2">
-          
+        <div className="h-32 w-full relative pt-2">
+
           {hoveredCf && (
             <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-[#1e2329]/95 backdrop-blur border border-emerald-500/20 rounded-md shadow-2xl p-2.5 text-[10px] sm:text-xs z-10 pointer-events-none w-max">
               <p className="font-bold text-white mb-1.5 border-b border-neutral-700/50 pb-1 font-mono tracking-tight text-center">{hoveredCf.label}</p>
@@ -326,31 +439,31 @@ export default function FinancePage({
             <line x1="0" y1="40" x2="100" y2="40" stroke="#1c2229" strokeWidth="0.2" strokeDasharray="1,1" />
 
             {currentData.map((cf, i) => {
-              const xPos = 4 + i * spacing; 
+              const xPos = 4 + i * spacing;
               const inflowH = (cf.inflow / maxCfVal) * 16;
               const outflowH = (Math.abs(cf.outflow) / maxCfVal) * 16;
 
               return (
-                <g 
-                  key={cf.id} 
+                <g
+                  key={cf.id}
                   className="group transition cursor-pointer"
                   onMouseEnter={() => setHoveredCf(cf)}
                   onMouseLeave={() => setHoveredCf(null)}
                 >
-                  <rect 
-                    x={xPos} 
-                    y={22.5 - inflowH} 
-                    width={colWidth} 
-                    height={inflowH} 
-                    className="fill-emerald-500/85 hover:fill-emerald-400 cursor-pointer" 
+                  <rect
+                    x={xPos}
+                    y={22.5 - inflowH}
+                    width={colWidth}
+                    height={inflowH}
+                    className="fill-emerald-500/85 hover:fill-emerald-400 cursor-pointer"
                     rx="0.5"
                   />
-                  <rect 
-                    x={xPos + groupOffset} 
-                    y={22.5} 
-                    width={colWidth} 
-                    height={outflowH} 
-                    className="fill-orange-500/85 hover:fill-orange-400 cursor-pointer" 
+                  <rect
+                    x={xPos + groupOffset}
+                    y={22.5}
+                    width={colWidth}
+                    height={outflowH}
+                    className="fill-orange-500/85 hover:fill-orange-400 cursor-pointer"
                     rx="0.5"
                   />
                 </g>
@@ -390,11 +503,11 @@ export default function FinancePage({
             {currentData.map((cf, i) => {
               const centerPercent = 4 + centerOffset + i * spacing;
               return (
-                <span 
-                  key={cf.id} 
+                <span
+                  key={cf.id}
                   className="absolute text-[10px] font-mono text-neutral-450"
-                  style={{ 
-                    left: `${centerPercent}%`, 
+                  style={{
+                    left: `${centerPercent}%`,
                     transform: 'translateX(-50%)',
                     whiteSpace: 'nowrap'
                   }}
@@ -408,79 +521,153 @@ export default function FinancePage({
       </div>
 
       {/* Split layout */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-5 pt-2">
-        
-        {/* Left Receivables list */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-2 pt-0">
+
+        {/* Left Expense Details */}
         <div className="md:col-span-7 bg-[#121417] p-5 rounded-xl border border-[#1e2329]/80 flex flex-col justify-between">
           <div>
             <h3 className="text-xs font-mono font-bold text-[#10B981] uppercase tracking-wider mb-2.5">
-              {t.receivablesInflow}
+              {lang === "en" ? "Expense Details" : "Chi tiết chi phí"}
             </h3>
-            <p className="text-[10px] text-neutral-400 mb-4 leading-snug">{t.receivablesInflowDesc}</p>
+            <p className="text-[10px] text-neutral-400 mb-4 leading-snug">
+              {lang === "en" ? "Detailed list of operational expenses with filters" : "Danh sách chi tiết các khoản chi phí vận hành kèm bộ lọc"}
+            </p>
 
-            <div className="space-y-3">
-              {receivablesList.map((rec) => (
-                <div 
-                  key={rec.id + rec.name}
-                  onClick={() => onSelectProject(rec.id)}
-                  className="bg-[#171b21] hover:bg-[#1c2229] border border-[#232a32] p-3 rounded-lg flex items-center justify-between text-[10px] font-mono transition cursor-pointer"
-                >
-                  <div className="min-w-0">
-                    <p className="text-[10px] text-neutral-450 truncate uppercase leading-none">{rec.client}</p>
-                    <h4 className="text-xs font-bold text-white font-sans truncate mt-1">{rec.name}</h4>
-                  </div>
+            {/* Filters */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              <select
+                value={filterMonth}
+                onChange={e => setFilterMonth(e.target.value)}
+                className="bg-[#171b21] border border-[#232a32] text-white text-[10px] font-mono rounded px-2 py-1 outline-none"
+              >
+                <option value="All">{lang === "en" ? "All Months" : "Tất cả tháng"}</option>
+                {availableMonths.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
 
-                  <div className="flex items-center space-x-5 shrink-0">
-                    <div className="text-right">
-                      <span className="block text-[10px] text-neutral-500 uppercase">{lang === "en" ? "Outstanding" : "Còn thiếu"}</span>
-                      <span className="block font-semibold text-white text-[11px] mt-0.5">
-                        {formatVND(rec.outstanding)}
+              <select
+                value={filterProject}
+                onChange={e => setFilterProject(e.target.value)}
+                className="bg-[#171b21] border border-[#232a32] text-white text-[10px] font-mono rounded px-2 py-1 outline-none max-w-[150px] truncate"
+              >
+                <option value="All">{lang === "en" ? "All Projects" : "Tất cả dự án"}</option>
+                {availableProjects.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+
+              <select
+                value={filterCategory}
+                onChange={e => setFilterCategory(e.target.value)}
+                className="bg-[#171b21] border border-[#232a32] text-white text-[10px] font-mono rounded px-2 py-1 outline-none"
+              >
+                <option value="All">{lang === "en" ? "All Categories" : "Tất cả danh mục"}</option>
+                {availableCategories.map(c => <option key={c} value={c}>{translateCategory(c)}</option>)}
+              </select>
+
+              <select
+                value={filterPaymentMethod}
+                onChange={e => setFilterPaymentMethod(e.target.value)}
+                className="bg-[#171b21] border border-[#232a32] text-white text-[10px] font-mono rounded px-2 py-1 outline-none"
+              >
+                <option value="All">{lang === "en" ? "All Methods" : "PT thanh toán"}</option>
+                {availablePaymentMethods.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+
+            <div className="flex-1 min-h-[400px] max-h-[500px] overflow-y-auto pr-4">
+              {filteredExpenses.map((exp) => {
+                const catColorRaw = categoryColors[exp.category] || 'bg-neutral-500';
+                const tagTextClass = catColorRaw.replace('bg-', 'text-').replace('-500', '-400');
+                const tagBgClass = catColorRaw.replace('bg-', 'bg-').replace('-500', '-950') + '/40';
+
+                return (
+                  <div
+                    key={exp.id}
+                    className="flex flex-col py-1.5 border-b border-neutral-800/50 hover:bg-white/[0.02] transition px-1"
+                  >
+                    {/* Top Row: Date+Tags on Left, Description on Right */}
+                    <div className="flex justify-between items-center mb-0.5">
+                      <div className="flex items-center gap-1.5 flex-wrap min-w-0 pr-2">
+                        <span className="text-neutral-500 font-mono text-[9px] shrink-0">{exp.date}</span>
+                        <div className="flex items-center gap-1 text-[8px] font-mono">
+                          {exp.paymentMethod && (
+                            <span className="bg-[#1a2f24] text-[#10B981] px-1 py-[1px] rounded uppercase truncate max-w-[60px]">
+                              {exp.paymentMethod}
+                            </span>
+                          )}
+                          <span className="bg-[#232a32] text-neutral-300 px-1 py-[1px] rounded uppercase truncate max-w-[80px]">{exp.project || 'Chung'}</span>
+                          <span className={`px-1 py-[1px] rounded uppercase ${tagTextClass} ${tagBgClass} truncate max-w-[80px]`}>
+                            {exp.category}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-[9px] text-neutral-500 italic font-mono truncate max-w-[130px] text-right shrink-0">
+                        {exp.description || ''}
                       </span>
-                      <span className="block text-[10px] text-neutral-400 mt-0.5">({rec.progress}% {lang === "en" ? "paid" : "đã thu"})</span>
                     </div>
 
-                    <span className={`text-[10px] font-bold border px-1.5 py-0.5 rounded select-none ${rec.statusColor}`}>
-                      {rec.statusText}
-                    </span>
+                    {/* Bottom Row: Vendor on Left, Amount on Right */}
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-[11px] font-bold text-white font-sans truncate min-w-0 pr-2">{exp.vendor || 'N/A'}</h4>
+                      <span className="block font-bold text-white text-[11px] shrink-0">
+                        {formatVND(exp.amount)}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
-
-              {receivablesList.length === 0 && (
+                );
+              })}
+              {filteredExpenses.length === 0 && (
                 <div className="text-center py-8 text-neutral-450 text-[10px] font-mono uppercase">
-                  {lang === "en" ? "All active cash receivables are settled!" : "Tất cả các khoản phải thu đã tất toán!"}
+                  {lang === "en" ? "No expenses found for selected filters" : "Không tìm thấy chi phí phù hợp với bộ lọc"}
                 </div>
               )}
             </div>
           </div>
-
-          <div className="border-t border-neutral-800/40 pt-3.5 mt-4 text-center">
-            <span className="text-[10px] text-neutral-500 font-mono leading-none">
-              {lang === "en" ? "Calculated dynamically directly from AN PHIM projects worksheet tab" : "Dữ liệu được lấy và tính toán trực tiếp từ trang tính Sổ Cái AN PHIM"}
-            </span>
-          </div>
-
         </div>
 
         {/* Right Expense Breakdown */}
         <div className="md:col-span-5 bg-[#121417] p-5 rounded-xl border border-[#1e2329]/80 space-y-4">
-          <div>
-            <h3 className="text-xs font-mono font-bold text-[#10B981] uppercase tracking-wider mb-1">
-              {t.expenseDistribution}
-            </h3>
-            <p className="text-[10px] text-neutral-400 leading-snug">
-              {lang === "en" ? "Total operational outlays parsed by sector" : "Cơ cấu chi phí vận hành studio phân loại theo danh mục"}
-            </p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="text-xs font-mono font-bold text-[#10B981] uppercase tracking-wider mb-1">
+                {lang === "en" ? "Expense Distribution" : "Phân bổ chi phí"}
+              </h3>
+              <p className="text-[10px] font-mono leading-snug flex flex-wrap items-center gap-1.5">
+                {expenseComparison && (
+                  <span className={expenseComparison.colorClass}>{expenseComparison.text}</span>
+                )}
+                <span className="text-neutral-500">{lang === "en" ? "Operational Expenses" : "Cơ cấu chi phí vận hành"}</span>
+              </p>
+            </div>
+            
+            <select
+              value={filterMonth}
+              onChange={e => setFilterMonth(e.target.value)}
+              className="bg-[#171b21] border border-[#232a32] text-white text-[10px] font-mono rounded px-2 py-1 outline-none shrink-0"
+            >
+              <option value="All">{lang === "en" ? "All Time" : "Tất cả"}</option>
+              {availableMonths.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
           </div>
 
-          <div className="flex flex-col items-center justify-center p-3 relative bg-[#171b21] border border-[#232a32] rounded-xl h-44">
+          <div className="flex flex-col items-center justify-center p-3 relative h-44">
             <div className="w-28 h-28 relative">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
                 <circle cx="18" cy="18" r="15.91549430918954" fill="transparent" stroke="#1c2229" strokeWidth="4" />
-                {db.expenses.map((e) => {
+                {pieExpenses.map((e) => {
                   const strokeDasharray = `${e.percentage} ${100 - e.percentage}`;
                   const strokeDashoffset = 100 - cumulativePercent;
                   cumulativePercent += e.percentage;
+                  
+                  const tailwindColors: Record<string, string> = {
+                    "bg-emerald-500": "#10b981",
+                    "bg-amber-500": "#f59e0b",
+                    "bg-orange-500": "#f97316",
+                    "bg-indigo-500": "#6366f1",
+                    "bg-cyan-500": "#06b6d4",
+                    "bg-purple-500": "#a855f7",
+                    "bg-pink-500": "#ec4899",
+                    "bg-rose-500": "#f43f5e",
+                    "bg-blue-500": "#3b82f6"
+                  };
 
                   return (
                     <circle
@@ -489,7 +676,7 @@ export default function FinancePage({
                       cy="18"
                       r="15.91549430918954"
                       fill="transparent"
-                      stroke={e.color}
+                      stroke={tailwindColors[e.color] || '#888'}
                       strokeWidth="4"
                       strokeDasharray={strokeDasharray}
                       strokeDashoffset={strokeDashoffset}
@@ -500,7 +687,7 @@ export default function FinancePage({
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-[10px] uppercase font-mono text-neutral-500 leading-none">{t.total}</span>
                 <strong className="text-xs text-white font-sans font-black mt-1 leading-none">
-                  {formatVND(totalExpense).split(" ")[0]}
+                  {formatVND(pieTotalExpense).split(" ")[0]}
                 </strong>
                 <span className="text-[10px] text-neutral-400 font-mono mt-0.5 leading-none">VND</span>
               </div>
@@ -508,12 +695,13 @@ export default function FinancePage({
           </div>
 
           <div className="space-y-2 text-[10px] font-mono">
-            {db.expenses.map((e) => {
+            {pieExpenses.map((e) => {
+              const textColorClass = e.color.replace('bg-', 'text-').replace('-500', '-400');
               return (
                 <div key={e.category} className="flex justify-between items-center border-b border-neutral-900 pb-1.5 leading-none">
                   <div className="flex items-center space-x-2">
-                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: e.color }} />
-                    <span className="text-neutral-300 font-bold">{translateCategory(e.category)}</span>
+                    <span className={`w-2.5 h-2.5 rounded-full ${e.color}`} />
+                    <span className={`${textColorClass} font-bold`}>{translateCategory(e.category)}</span>
                   </div>
                   <div className="space-x-3.5">
                     <span className="text-neutral-450">{formatVND(e.amount)}</span>
@@ -528,70 +716,44 @@ export default function FinancePage({
 
       </div>
 
-      {/* Finance Alerts Section bottom */}
-      <div className="bg-[#121417] p-5 rounded-xl border border-[#1e2329]/80 space-y-3.5">
-        <h3 className="text-xs font-mono font-bold text-orange-400 uppercase tracking-widest flex items-center space-x-1.5">
-          <BadgeAlert className="w-4 h-4" />
-          <span>{t.alertsNotifications}</span>
+      {/* Receivables Section bottom */}
+      <div className="bg-[#121417] p-5 rounded-xl border border-[#1e2329]/80 space-y-3.5 mt-2">
+        <h3 className="text-xs font-mono font-bold text-[#10B981] uppercase tracking-wider flex items-center space-x-1.5">
+          <FileText className="w-4 h-4" />
+          <span>{t.receivablesInflow}</span>
         </h3>
+        <p className="text-[10px] text-neutral-400 mb-4 leading-snug">{t.receivablesInflowDesc}</p>
 
-        <div className="space-y-2.5">
-          {db.alerts.map((al) => {
-            const isCleared = al.status === "Reviewed";
-            if (isCleared) return null;
-            
-            return (
-              <div 
-                key={al.id}
-                className="bg-[#171b21] p-3 rounded-xl border border-red-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono text-[10px] text-white"
-              >
-                <div className="flex items-start space-x-2.5 min-w-0">
-                  <AlertOctagon className="w-4 h-4 text-red-500 shrink-0 mt-0.5 animate-pulse" />
-                  <div>
-                    <span className="text-red-400 font-bold uppercase text-[10px] tracking-wider font-mono">
-                      {translateAlertType(al.type)}
-                    </span>
-                    <p className="text-neutral-300 pr-4 mt-0.5 leading-snug">{al.description}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-2 shrink-0 justify-end">
-                  <button
-                    onClick={() => {
-                      const p = db.projects.find(proj => proj.name === al.project);
-                      if (p) onSelectProject(p.id);
-                    }}
-                    className="px-3 py-1.5 bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 text-neutral-300 rounded font-sans transition text-[10px] cursor-pointer"
-                  >
-                    {lang === "en" ? "Locate Project" : "Tìm dự án"}
-                  </button>
-                  <button
-                    onClick={() => {
-                      onClearAlert(al.id);
-                      setSelectedAlertNote(lang === "en" ? `Cleared alert: ${al.description}` : `Đã xem xét cảnh báo: ${al.description}`);
-                      setTimeout(() => setSelectedAlertNote(null), 3000);
-                    }}
-                    className="px-3 py-1.5 bg-orange-600/10 border border-orange-500/20 text-orange-400 hover:bg-orange-600 hover:text-white rounded font-sans transition text-[10px] cursor-pointer"
-                  >
-                    {lang === "en" ? "Clear alert" : "Bỏ qua"}
-                  </button>
-                </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {receivablesList.map((rec) => (
+            <div
+              key={rec.id + rec.name}
+              onClick={() => onSelectProject(rec.id)}
+              className="bg-[#171b21] hover:bg-[#1c2229] border border-[#232a32] p-3 rounded-lg flex items-center justify-between text-[10px] font-mono transition cursor-pointer"
+            >
+              <div className="min-w-0 pr-2">
+                <p className="text-[10px] text-neutral-450 truncate uppercase leading-none">{rec.client}</p>
+                <h4 className="text-xs font-bold text-white font-sans truncate mt-1">{rec.name}</h4>
               </div>
-            );
-          })}
 
-          {db.alerts.filter(a => a.status === "Pending").length === 0 && (
-            <div className="text-center py-6 border border-dashed border-neutral-800 rounded-lg text-neutral-500 text-[10px] font-mono uppercase">
-              {t.noAlerts}
+              <div className="flex flex-col items-end shrink-0 text-right">
+                <span className="block text-[10px] text-neutral-500 uppercase">{lang === "en" ? "Outstanding" : "Còn thiếu"}</span>
+                <span className="block font-semibold text-white text-[11px] mt-0.5">
+                  {formatVND(rec.outstanding)}
+                </span>
+                <span className={`text-[10px] font-bold border px-1.5 py-0.5 mt-1 rounded select-none ${rec.statusColor}`}>
+                  {rec.statusText}
+                </span>
+              </div>
+            </div>
+          ))}
+
+          {receivablesList.length === 0 && (
+            <div className="col-span-full text-center py-8 text-neutral-450 text-[10px] font-mono uppercase">
+              {lang === "en" ? "All active cash receivables are settled!" : "Tất cả các khoản phải thu đã tất toán!"}
             </div>
           )}
         </div>
-
-        {selectedAlertNote && (
-          <div className="bg-emerald-950/40 border border-emerald-500/20 text-emerald-400 rounded p-2.5 text-[10px] font-mono text-center">
-            {selectedAlertNote}
-          </div>
-        )}
       </div>
 
     </div>

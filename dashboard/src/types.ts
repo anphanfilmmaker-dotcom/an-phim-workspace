@@ -66,6 +66,15 @@ export interface ExpenseTransaction {
   amount: number;
 }
 
+// Structuring individual income transaction
+export interface IncomeTransaction {
+  id: string;
+  date: string; // e.g. "2026-06-12"
+  project: string;
+  amount: number;
+  notes?: string;
+}
+
 // Structuring a finance alert
 export interface FinanceAlert {
   id: string;
@@ -158,6 +167,7 @@ export interface GoogleSheetDB {
   cashFlow: CashFlowPoint[];
   expenses: ExpenseCategoryItem[];
   expenseTransactions: ExpenseTransaction[];
+  incomes: IncomeTransaction[];
   alerts: FinanceAlert[];
   documents: DocumentItem[];
   projectDocuments: ProjectDocumentSet[];

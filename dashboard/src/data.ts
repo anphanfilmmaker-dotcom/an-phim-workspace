@@ -219,6 +219,11 @@ export const INITIAL_SHEET_DATA: GoogleSheetDB = {
   ],
   expenses: dynamicExpenses,
   expenseTransactions: mappedExpenses,
+  incomes: [
+    { id: "inc_mock_1", date: "2026-06-01", project: "TVC Launch Film", amount: 450_000_000, notes: "Advance payment" },
+    { id: "inc_mock_2", date: "2026-06-03", project: "Social Campaign", amount: 620_000_000, notes: "Phase 1 payment" },
+    { id: "inc_mock_3", date: "2026-06-07", project: "Real Estate KV", amount: 980_000_000, notes: "Final payment" }
+  ],
   alerts: [
     {
       id: "al_1",

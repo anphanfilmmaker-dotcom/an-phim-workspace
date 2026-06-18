@@ -254,6 +254,7 @@ async function syncExcelToDatabase(dbRun, dbQuery) {
   
   await dbRun("DELETE FROM projects");
   await dbRun("DELETE FROM cash_flow");
+  await dbRun("DELETE FROM incomes");
   await dbRun("DELETE FROM expenses");
   await dbRun("DELETE FROM alerts");
   await dbRun("DELETE FROM documents");
@@ -416,12 +417,19 @@ async function syncExcelToDatabase(dbRun, dbQuery) {
   }
 
   if (data.incomeRaw) {
-    data.incomeRaw.forEach(inc => {
+    let incomeId = 1;
+    for (const inc of data.incomeRaw) {
       const d = parseExcelDate(inc['Ngày Nhận']);
       const label = getWeekLabel(d);
       if (!cfMap[label]) cfMap[label] = { inflow: 0, outflow: 0 };
-      cfMap[label].inflow += (Number(inc['Số Tiền']) || 0);
-    });
+      const amount = Number(inc['Số Tiền']) || 0;
+      cfMap[label].inflow += amount;
+
+      const dateStr = d.toISOString().split('T')[0]; // YYYY-MM-DD
+      await dbRun("INSERT INTO incomes (id, date, project, amount, notes) VALUES (?, ?, ?, ?, ?)", [
+        `inc_${incomeId++}`, dateStr, inc['Dự Án'] || '', amount, inc['Ghi Chú'] || ''
+      ]);
+    }
   }
 
   if (data.expensesRaw) {

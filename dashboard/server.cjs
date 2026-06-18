@@ -180,6 +180,13 @@ async function initDb() {
     `CREATE TABLE IF NOT EXISTS stats (
       key TEXT PRIMARY KEY,
       value TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS incomes (
+      id TEXT PRIMARY KEY,
+      date TEXT,
+      project TEXT,
+      amount REAL,
+      notes TEXT
     )`
   ];
 
@@ -269,6 +276,13 @@ async function initDb() {
     `CREATE TABLE IF NOT EXISTS stats (
       key VARCHAR(100) PRIMARY KEY,
       value TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS incomes (
+      id VARCHAR(50) PRIMARY KEY,
+      date VARCHAR(50),
+      project VARCHAR(255),
+      amount DOUBLE PRECISION,
+      notes TEXT
     )`
   ];
 
@@ -309,6 +323,7 @@ app.get('/api/db', async (req, res) => {
     const tasks = await dbQuery("SELECT * FROM tasks");
     const recent_expenses = await dbQuery("SELECT * FROM recent_expenses");
     const statsRows = await dbQuery("SELECT * FROM stats");
+    const incomes = await dbQuery("SELECT * FROM incomes");
 
     // Parse JSON strings back to arrays/objects where applicable
     const parsedProjects = projects.map(p => ({
@@ -338,6 +353,7 @@ app.get('/api/db', async (req, res) => {
       agents,
       tasks,
       recent_expenses,
+      incomes,
       agentPerformance: statsObj.agentPerformance || {}
     });
   } catch (err) {

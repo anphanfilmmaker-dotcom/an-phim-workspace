@@ -47,7 +47,7 @@ export default function FinancePage({
 }: FinancePageProps) {
   const t = translations[lang];
   const [selectedAlertNote, setSelectedAlertNote] = useState<string | null>(null);
-  const [timescale, setTimescale] = useState<"week" | "month" | "quarter">("week");
+  const [timescale, setTimescale] = useState<"day" | "month" | "quarter">("day");
   const [hoveredCf, setHoveredCf] = useState<any>(null);
 
   // Filters for Expense Details
@@ -56,52 +56,141 @@ export default function FinancePage({
   const [filterCategory, setFilterCategory] = React.useState("All");
   const [filterPaymentMethod, setFilterPaymentMethod] = React.useState("All");
 
-  const monthlyCashFlow = React.useMemo(() => {
-    const map = new Map();
-    const monthOrder = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    db.cashFlow.forEach(cf => {
-      const monthEng = cf.label.split(' ')[0];
-      const monthMap = { "Jan": "Thg 1", "Feb": "Thg 2", "Mar": "Thg 3", "Apr": "Thg 4", "May": "Thg 5", "Jun": "Thg 6", "Jul": "Thg 7", "Aug": "Thg 8", "Sep": "Thg 9", "Oct": "Thg 10", "Nov": "Thg 11", "Dec": "Thg 12" };
-      const mLabel = lang === "en" ? monthEng : (monthMap[monthEng] || monthEng);
+  const currentData = React.useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // start of today
+    const currentYear = today.getFullYear();
 
-      const existing = map.get(monthEng) || { inflow: 0, outflow: 0, netProfit: 0, label: mLabel };
-      existing.inflow += cf.inflow;
-      existing.outflow += cf.outflow;
-      existing.netProfit += cf.netProfit;
-      map.set(monthEng, existing);
+    const dataBuckets: any[] = [];
+
+    if (timescale === "day") {
+      // Days of the current month
+      const numDays = new Date(currentYear, today.getMonth() + 1, 0).getDate();
+      for (let i = 1; i <= numDays; i++) {
+        const d = new Date(currentYear, today.getMonth(), i);
+        dataBuckets.push({
+          id: `d_${i}`,
+          label: String(i),
+          dateVal: d.getTime(),
+          inflow: 0,
+          outflow: 0,
+          netProfit: 0,
+          isToday: i === today.getDate(),
+          isFuture: i > today.getDate()
+        });
+      }
+    } else if (timescale === "month") {
+      // 12 weeks ending this week
+      const dayOfWeek = today.getDay();
+      const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const currentMonday = new Date(today.getTime() + diffToMonday * 86400000);
+      
+      for (let i = 11; i >= 0; i--) {
+        const wMonday = new Date(currentMonday.getTime() - i * 7 * 86400000);
+        const wSunday = new Date(wMonday.getTime() + 6 * 86400000);
+        wSunday.setHours(23, 59, 59, 999);
+        
+        dataBuckets.push({
+          id: `wk_${11 - i}`,
+          label: `${wMonday.getDate()}/${wMonday.getMonth()+1}`,
+          startDate: wMonday.getTime(),
+          endDate: wSunday.getTime(),
+          inflow: 0,
+          outflow: 0,
+          netProfit: 0,
+          isToday: i === 0,
+          isFuture: false
+        });
+      }
+    } else if (timescale === "quarter") {
+      // 4 quarters
+      const currentQ = Math.floor(today.getMonth() / 3) + 1;
+      for (let i = 1; i <= 4; i++) {
+        dataBuckets.push({
+          id: `q_${i}`,
+          label: `Q${i}/${String(currentYear).slice(2)}`,
+          quarterIdx: i,
+          inflow: 0,
+          outflow: 0,
+          netProfit: 0,
+          isToday: i === currentQ,
+          isFuture: i > currentQ
+        });
+      }
+    }
+
+    const processItem = (dateStr: string, amount: number, isIncome: boolean) => {
+      if (!dateStr || !amount) return;
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return;
+
+      if (timescale === "day") {
+        // Find which bucket this day belongs to
+        const itemTime = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        const bucket = dataBuckets.find(b => b.dateVal === itemTime);
+        if (bucket) {
+          if (isIncome) bucket.inflow += amount;
+          else bucket.outflow -= amount; // outflow is negative
+        }
+      } else if (timescale === "month") {
+        const itemTime = d.getTime();
+        const bucket = dataBuckets.find(b => itemTime >= b.startDate && itemTime <= b.endDate);
+        if (bucket) {
+          if (isIncome) bucket.inflow += amount;
+          else bucket.outflow -= amount;
+        }
+      } else if (timescale === "quarter") {
+        if (d.getFullYear() === currentYear) {
+          const qIdx = Math.floor(d.getMonth() / 3) + 1;
+          const bucket = dataBuckets.find(b => b.quarterIdx === qIdx);
+          if (bucket) {
+            if (isIncome) bucket.inflow += amount;
+            else bucket.outflow -= amount;
+          }
+        }
+      }
+    };
+
+    (db.incomes || []).forEach(inc => processItem(inc.date, inc.amount, true));
+    (db.expenseTransactions || []).forEach(exp => processItem(exp.date, exp.amount, false));
+
+    let totalHistoricalNet = 0;
+    let netBeforeFirstBucket = 0;
+    let firstBucketStartMs = 0;
+    if (timescale === "day") {
+      firstBucketStartMs = new Date(currentYear, today.getMonth(), 1).getTime();
+    } else if (timescale === "month") {
+      firstBucketStartMs = dataBuckets[0].startDate;
+    } else {
+      firstBucketStartMs = new Date(currentYear, 0, 1).getTime();
+    }
+
+    (db.incomes || []).forEach(inc => {
+      const d = new Date(inc.date);
+      if (!isNaN(d.getTime())) {
+         totalHistoricalNet += inc.amount;
+         if (d.getTime() < firstBucketStartMs) netBeforeFirstBucket += inc.amount;
+      }
+    });
+    (db.expenseTransactions || []).forEach(exp => {
+      const d = new Date(exp.date);
+      if (!isNaN(d.getTime())) {
+         totalHistoricalNet -= exp.amount;
+         if (d.getTime() < firstBucketStartMs) netBeforeFirstBucket -= exp.amount;
+      }
     });
 
-    return Array.from(map.entries())
-      .sort((a, b) => monthOrder.indexOf(a[0]) - monthOrder.indexOf(b[0]))
-      .map(([k, vals], idx) => ({ id: `m_${idx}`, ...vals }));
-  }, [db.cashFlow, lang]);
+    // The cash starts at 0 at the very beginning of tracking history
+    let runningCash = netBeforeFirstBucket;
 
-  const quarterlyCashFlow = React.useMemo(() => {
-    const map = new Map();
-    db.cashFlow.forEach(cf => {
-      const monthEng = cf.label.split(' ')[0];
-      let q = "Q1/26";
-      if (["Apr", "May", "Jun"].includes(monthEng)) q = "Q2/26";
-      else if (["Jul", "Aug", "Sep"].includes(monthEng)) q = "Q3/26";
-      else if (["Oct", "Nov", "Dec"].includes(monthEng)) q = "Q4/26";
-
-      const existing = map.get(q) || { inflow: 0, outflow: 0, netProfit: 0, label: q };
-      existing.inflow += cf.inflow;
-      existing.outflow += cf.outflow;
-      existing.netProfit += cf.netProfit;
-      map.set(q, existing);
+    dataBuckets.forEach(b => { 
+      b.netProfit = b.inflow + b.outflow; 
+      runningCash += b.netProfit;
+      b.availableCash = runningCash;
     });
 
-    return Array.from(map.entries())
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([k, vals], idx) => ({ id: `q_${idx}`, ...vals }));
-  }, [db.cashFlow]);
-
-  const currentData = timescale === "week"
-    ? db.cashFlow.slice(-7)
-    : timescale === "month"
-      ? monthlyCashFlow
-      : quarterlyCashFlow;
+    return dataBuckets;
+  }, [db.incomes, db.expenseTransactions, timescale, lang]);
 
   const totalReceivable = db.projects
     .filter(p => p.status !== "Hoàn thành")
@@ -155,24 +244,22 @@ export default function FinancePage({
     });
 
   const maxCfVal = Math.max(...currentData.map(cf => Math.max(cf.inflow, Math.abs(cf.outflow))) || [1]);
+  const maxAbsCash = Math.max(...currentData.map(cf => Math.abs(cf.availableCash))) || 1;
+
   let cumulativePercent = 0;
 
-  let colWidth = 4.5;
-  let spacing = 14;
-  let groupOffset = 5.2;
-  let centerOffset = 4.85;
+  const nItems = currentData.length;
+  const paddingX = 4;
+  const availableWidth = 100 - paddingX * 2;
+  const spacing = nItems > 1 ? availableWidth / (nItems - 1) : availableWidth;
 
-  if (timescale === "month") {
-    colWidth = 4.8;
-    spacing = 16.5;
-    groupOffset = 5.5;
-    centerOffset = 5.15;
-  } else if (timescale === "quarter") {
-    colWidth = 6.5;
-    spacing = 26;
-    groupOffset = 7.5;
-    centerOffset = 7.0;
-  }
+  let colWidth = 4.5;
+  if (nItems > 10) colWidth = 2.5; // 12 months
+  else if (nItems < 5) colWidth = 6.5; // 4 quarters
+  else colWidth = 3.8; // 7 days
+
+  const groupOffset = colWidth * 1.15;
+  const centerOffset = groupOffset / 2;
 
   const translateCategory = (cat: string) => {
     return cat;
@@ -197,10 +284,10 @@ export default function FinancePage({
     if (rawExpenses.length === 0) return null;
     const allDates = rawExpenses.map(e => new Date(e.date).getTime());
     const maxDate = new Date(Math.max(...allDates));
-    
+
     const last7DaysStart = new Date(maxDate);
     last7DaysStart.setDate(maxDate.getDate() - 7);
-    
+
     const prev7DaysStart = new Date(last7DaysStart);
     prev7DaysStart.setDate(last7DaysStart.getDate() - 7);
 
@@ -221,13 +308,13 @@ export default function FinancePage({
     const diffPercent = ((currWeekTotal - prevWeekTotal) / prevWeekTotal) * 100;
     const isUp = diffPercent > 0;
     const absDiff = Math.abs(diffPercent).toFixed(1);
-    
-    const textStr = lang === "en" 
+
+    const textStr = lang === "en"
       ? `${isUp ? 'Up' : 'Down'} ${absDiff}% vs last week`
       : `${isUp ? 'Tăng' : 'Giảm'} ${absDiff}% so với tuần trước`;
-      
+
     const colorClass = isUp ? 'text-red-400' : 'text-[#10B981]';
-      
+
     return { text: textStr, colorClass };
   }, [rawExpenses, lang]);
 
@@ -384,11 +471,11 @@ export default function FinancePage({
             {/* Timescale selector tab */}
             <div className="flex items-center bg-[#171b21] p-0.5 rounded-lg border border-[#232a32] text-[9px] font-mono font-bold select-none">
               <button
-                onClick={() => setTimescale("week")}
+                onClick={() => setTimescale("day")}
                 type="button"
-                className={`px-3 py-1 rounded-md transition duration-200 cursor-pointer ${timescale === "week" ? "bg-white text-black font-extrabold" : "text-neutral-450 hover:text-white"}`}
+                className={`px-3 py-1 rounded-md transition duration-200 cursor-pointer ${timescale === "day" ? "bg-white text-black font-extrabold" : "text-neutral-450 hover:text-white"}`}
               >
-                {lang === "en" ? "WEEK" : "TUẦN"}
+                {lang === "en" ? "DAY" : "NGÀY"}
               </button>
               <button
                 onClick={() => setTimescale("month")}
@@ -433,12 +520,12 @@ export default function FinancePage({
               <div className="flex flex-col gap-1 font-mono">
                 <span className="text-emerald-400"><span className="text-neutral-400 mr-2">{t.in}:</span> {formatVND(hoveredCf.inflow)}</span>
                 <span className="text-orange-400"><span className="text-neutral-400 mr-2">{t.out}:</span> {formatVND(Math.abs(hoveredCf.outflow))}</span>
-                <span className="text-white pt-1 border-t border-neutral-800 mt-1"><span className="text-neutral-400 mr-2">{t.net}:</span> {formatVND(hoveredCf.netProfit)}</span>
+                <span className="text-white pt-1 border-t border-neutral-800 mt-1"><span className="text-neutral-400 mr-2">{lang === "en" ? "Cash:" : "Tiền mặt:"}</span> {formatVND(hoveredCf.availableCash)}</span>
               </div>
             </div>
           )}
 
-          <svg viewBox="0 0 100 45" className="w-full h-full overflow-visible">
+          <svg viewBox="0 0 100 45" preserveAspectRatio="none" className="w-full h-full overflow-visible">
             <line x1="0" y1="5" x2="100" y2="5" stroke="#1c2229" strokeWidth="0.2" strokeDasharray="1,1" />
             <line x1="0" y1="22.5" x2="100" y2="22.5" stroke="#1c2229" strokeWidth="0.25" />
             <line x1="0" y1="40" x2="100" y2="40" stroke="#1c2229" strokeWidth="0.2" strokeDasharray="1,1" />
@@ -476,33 +563,39 @@ export default function FinancePage({
             })}
 
             <path
-              d={currentData.map((cf, i) => {
-                const xPos = 4 + centerOffset + i * spacing;
-                const offset = (cf.netProfit / maxCfVal) * 16;
+              d={currentData.filter(cf => !cf.isFuture).map((cf, idx) => {
+                const originalIndex = currentData.findIndex(c => c.id === cf.id);
+                const xPos = 4 + centerOffset + originalIndex * spacing;
+                const offset = (cf.availableCash / maxAbsCash) * 16;
                 const yPos = 22.5 - offset;
-                return `${i === 0 ? "M" : "L"} ${xPos} ${yPos}`;
+                return `${idx === 0 ? "M" : "L"} ${xPos} ${yPos}`;
               }).join(" ")}
               fill="none"
               stroke="#ffffff"
               strokeWidth="0.8"
             />
-
-            {currentData.map((cf, i) => {
-              const xPos = 4 + centerOffset + i * spacing;
-              const offset = (cf.netProfit / maxCfVal) * 16;
-              const yPos = 22.5 - offset;
-              return (
-                <circle
-                  key={cf.id}
-                  cx={xPos}
-                  cy={yPos}
-                  r="0.9"
-                  className="fill-neutral-900 stroke-white cursor-pointer"
-                  strokeWidth="0.35"
-                />
-              );
-            })}
           </svg>
+
+          {/* Draw today's dot */}
+          {currentData.filter(cf => cf.isToday).map((cf) => {
+            const originalIndex = currentData.findIndex(c => c.id === cf.id);
+            const xPos = 4 + centerOffset + originalIndex * spacing;
+            const offset = (cf.availableCash / maxAbsCash) * 16;
+            const yPos = 22.5 - offset;
+            const topPercent = (yPos / 45) * 100;
+            return (
+              <div
+                key={`today-dot-${cf.id}`}
+                className="absolute w-2 h-2 rounded-full bg-white z-10 animate-pulse"
+                style={{
+                  left: `${xPos}%`,
+                  top: `${topPercent}%`,
+                  transform: 'translate(-50%, -50%)',
+                  boxShadow: '0 0 10px rgba(255, 255, 255, 0.8)'
+                }}
+              />
+            );
+          })}
 
           <div className="absolute bottom-[-10px] left-0 right-0 h-4">
             {currentData.map((cf, i) => {
@@ -583,6 +676,15 @@ export default function FinancePage({
                 const tagTextClass = catColorRaw.replace('bg-', 'text-').replace('-500', '-400');
                 const tagBgClass = catColorRaw.replace('bg-', 'bg-').replace('-500', '-950') + '/40';
 
+                const getPaymentMethodColor = (method: string) => {
+                  const m = method.toLowerCase();
+                  if (m.includes('momo')) return 'bg-pink-950/40 text-pink-400';
+                  if (m.includes('chuyển khoản') || m === 'ck') return 'bg-emerald-950/40 text-emerald-400';
+                  if (m.includes('cash') || m.includes('tiền mặt')) return 'bg-blue-950/40 text-blue-400';
+                  if (m.includes('credit') || m.includes('thẻ')) return 'bg-orange-950/40 text-orange-400';
+                  return 'bg-neutral-800 text-neutral-400';
+                };
+
                 return (
                   <div
                     key={exp.id}
@@ -594,7 +696,7 @@ export default function FinancePage({
                         <span className="text-neutral-500 font-mono text-[9px] shrink-0">{exp.date}</span>
                         <div className="flex items-center gap-1 text-[8px] font-mono">
                           {exp.paymentMethod && (
-                            <span className="bg-[#1a2f24] text-[#10B981] px-1 py-[1px] rounded uppercase truncate max-w-[60px]">
+                            <span className={`px-1 py-[1px] rounded uppercase truncate max-w-[60px] ${getPaymentMethodColor(exp.paymentMethod)}`}>
                               {exp.paymentMethod}
                             </span>
                           )}
@@ -642,7 +744,7 @@ export default function FinancePage({
                 <span className="text-neutral-500">{lang === "en" ? "Operational Expenses" : "Cơ cấu chi phí vận hành"}</span>
               </p>
             </div>
-            
+
             <select
               value={filterMonth}
               onChange={e => setFilterMonth(e.target.value)}
@@ -661,7 +763,7 @@ export default function FinancePage({
                   const strokeDasharray = `${e.percentage} ${100 - e.percentage}`;
                   const strokeDashoffset = 100 - cumulativePercent;
                   cumulativePercent += e.percentage;
-                  
+
                   const tailwindColors: Record<string, string> = {
                     "bg-emerald-500": "#10b981",
                     "bg-amber-500": "#f59e0b",

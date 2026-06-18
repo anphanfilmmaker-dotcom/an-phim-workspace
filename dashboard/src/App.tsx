@@ -137,7 +137,8 @@ export default function App() {
             documents: data.documents || db.documents,
             actions: data.actions || db.actions,
             agents: data.agents || db.agents,
-            tasks: data.tasks || db.tasks
+            tasks: data.tasks || db.tasks,
+            incomes: data.incomes || db.incomes
           };
           updateDbState(safeDb);
         }

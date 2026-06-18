@@ -114,6 +114,10 @@ export interface AIAgent {
   recentActivity: string;
   workloadProgress: number; // percentage e.g. 72
   avatarColor: string; // text/bg helper
+  tokenInput?: number;
+  tokenOutput?: number;
+  runCount?: number;
+  estimatedCost?: number;
 }
 
 // Structuring a task in queue
@@ -124,6 +128,18 @@ export interface AgentTask {
   assignedAgent: string;
   status: "Running" | "Waiting Input" | "Pending" | "Completed";
   dueTime: string; // e.g. "Today 3:00 PM", "Tomorrow 10:00 AM"
+}
+
+// Structuring the Document Set tracked per project (from Excel "Giấy tờ" sheet)
+export interface ProjectDocumentSet {
+  projectId: string;
+  projectName: string;
+  quote: boolean;
+  contract: boolean;
+  vatR1: boolean;
+  vatR2: boolean;
+  vatR3: boolean;
+  liquidation: boolean;
 }
 
 // Representation of Google Sheet database structure
@@ -144,6 +160,8 @@ export interface GoogleSheetDB {
   expenseTransactions: ExpenseTransaction[];
   alerts: FinanceAlert[];
   documents: DocumentItem[];
+  projectDocuments: ProjectDocumentSet[];
+  templateDocuments: DocumentItem[];
   actions: CEOAction[];
   agents: AIAgent[];
   tasks: AgentTask[];

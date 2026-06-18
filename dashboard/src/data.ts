@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { GoogleSheetDB, Project, DocumentItem, CEOAction, ProjectStatus, ProjectType, ExpenseTransaction } from "./types";
+import { GoogleSheetDB, Project, DocumentItem, CEOAction, ProjectStatus, ProjectType, ExpenseTransaction, ProjectDocumentSet } from "./types";
 import rawExcel from "./excelData.json";
 
 // Format currency as full Vietnamese Dong: e.g. 21,600,000đ
@@ -59,7 +59,7 @@ const mappedProjects: Project[] = rawExcel.projects
   let dueDateStr = "Dec 31, 2026";
   if (p.Due) {
     const d = new Date(p.Due);
-    if (!isNaN(d.getTime())) dueDateStr = d.toLocaleDateString('en-US', {month: 'long', day: 'numeric', year: 'numeric'});
+    if (!isNaN(d.getTime())) dueDateStr = d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
   return {
@@ -76,7 +76,17 @@ const mappedProjects: Project[] = rawExcel.projects
     nextAction: p["Next Action"] || "",
     nextActionDue: dueDateStr,
     projectType: projectTypeMap[p.Type] || "Video",
-    milestones: [],
+    milestones: [
+      { name: "Brief / Scope", date: "20/06/2026", completed: true },
+      { name: "Pre-Production", date: "25/06/2026", completed: true },
+      { name: "Draft idea", date: "01/07/2026", completed: false },
+      { name: "Storyboard", date: "05/07/2026", completed: false },
+      { name: "Production", date: "15/07/2026", completed: false },
+      { name: "Offline", date: "20/07/2026", completed: false },
+      { name: "Online", date: "25/07/2026", completed: false },
+      { name: "Delivery", date: "30/07/2026", completed: false },
+      { name: "Final / Close-out", date: "05/08/2026", completed: false },
+    ],
     paymentPhase: "Phase 1 of 3",
     paymentPhaseProgress: budget > 0 ? Math.round((received / budget) * 100) : 0,
     thumbnailUrl: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=400&q=80",
@@ -111,10 +121,60 @@ const mappedExpenses: ExpenseTransaction[] = rawExcel.expense
   };
 });
 
+const mappedProjectDocuments: ProjectDocumentSet[] = rawExcel.giayTo
+  ? rawExcel.giayTo.map((g: any, idx: number) => {
+      const projName = (g["Project Name"] || (rawExcel.projects && rawExcel.projects[idx] ? rawExcel.projects[idx]["Project Name"] : ""));
+      if (!projName || projName.toString().trim() === "") return null;
+      
+      const checkStatus = (val: any) => typeof val === "string" && val.trim().toLowerCase() === "x";
+      return {
+        projectId: `proj_v22_${idx}`,
+        projectName: projName,
+        quote: checkStatus(g["Báo giá"]),
+        contract: checkStatus(g["Hợp đồng"]),
+        vatR1: checkStatus(g["VAT R1"]),
+        vatR2: checkStatus(g["VAT R2"]),
+        vatR3: checkStatus(g["VAT R3"]),
+        liquidation: checkStatus(g["BBTL"] || g["BB Thanh Lý"]),
+      };
+    }).filter(Boolean) as ProjectDocumentSet[]
+  : [];
+
+const templateDocs: DocumentItem[] = [
+  {
+    id: "tpl_1",
+    name: "Template_Hop_Dong_Dich_Vu.docx",
+    project: "Templates",
+    type: "Contract",
+    status: "Approved",
+    owner: "Admin",
+    lastUpdated: "Jan 1, 2026 09:00 AM",
+    fileSize: "2.1 MB",
+    isUrgent: false
+  },
+  {
+    id: "tpl_2",
+    name: "Template_Bao_Gia_Chuan.xlsx",
+    project: "Templates",
+    type: "Budget",
+    status: "Approved",
+    owner: "Admin",
+    lastUpdated: "Jan 1, 2026 09:00 AM",
+    fileSize: "1.5 MB",
+    isUrgent: false
+  }
+];
+
 const colorPalette = [
   "bg-emerald-500", "bg-amber-500", "bg-orange-500", 
   "bg-indigo-500", "bg-cyan-500", "bg-purple-500", 
-  "bg-pink-500", "bg-rose-500", "bg-blue-500"
+  "bg-pink-500", "bg-rose-500", "bg-blue-500",
+  "bg-red-500", "bg-lime-500", "bg-fuchsia-500",
+  "bg-yellow-500", "bg-teal-500", "bg-sky-500",
+  "bg-violet-500", "bg-emerald-300", "bg-amber-300",
+  "bg-orange-300", "bg-indigo-300", "bg-cyan-300",
+  "bg-purple-300", "bg-pink-300", "bg-rose-300",
+  "bg-blue-300", "bg-red-300", "bg-lime-300"
 ];
 
 const categoryTotals: Record<string, number> = {};
@@ -133,10 +193,12 @@ const dynamicExpenses = Object.keys(categoryTotals).map((cat, idx) => {
   };
 }).sort((a, b) => b.amount - a.amount);
 
+const totalReceivedAmt = mappedProjects.reduce((sum, p) => sum + p.received, 0);
+
 // Initial mockup dataset based directly on the provided screenshots and company context "AN PHIM"
 export const INITIAL_SHEET_DATA: GoogleSheetDB = {
   dashboard: {
-    cashAvailable: 2_480_000_000,
+    cashAvailable: (totalReceivedAmt * 0.92) - totalExpensesAmt,
     cashAvailableChange: "8.4% vs last week",
     receivable: 6_310_000_000,
     receivableChange: "5.1% vs last week",
@@ -156,6 +218,7 @@ export const INITIAL_SHEET_DATA: GoogleSheetDB = {
     { id: "cf_7", label: "Sun, Jun 7", inflow: 980_000_000, outflow: 130_000_000, netProfit: 850_000_000 },
   ],
   expenses: dynamicExpenses,
+  expenseTransactions: mappedExpenses,
   alerts: [
     {
       id: "al_1",
@@ -263,6 +326,8 @@ export const INITIAL_SHEET_DATA: GoogleSheetDB = {
       fileSize: "14 MB",
     }
   ],
+  projectDocuments: mappedProjectDocuments,
+  templateDocuments: templateDocs,
   actions: [
     {
       id: "act_1",
@@ -335,6 +400,10 @@ export const INITIAL_SHEET_DATA: GoogleSheetDB = {
       recentActivity: "Reconciled 12 bank transactions & generated forecast report.",
       workloadProgress: 72,
       avatarColor: "text-emerald-500 bg-emerald-500/10",
+      tokenInput: 15400,
+      tokenOutput: 3200,
+      runCount: 45,
+      estimatedCost: 0.12,
     },
     {
       id: "agent_pm",
@@ -345,6 +414,10 @@ export const INITIAL_SHEET_DATA: GoogleSheetDB = {
       recentActivity: "Updated 8 project milestones & flagged 2 overdue tasks.",
       workloadProgress: 65,
       avatarColor: "text-green-400 bg-green-500/10",
+      tokenInput: 8500,
+      tokenOutput: 1100,
+      runCount: 22,
+      estimatedCost: 0.05,
     },
     {
       id: "agent_creative",
@@ -355,6 +428,10 @@ export const INITIAL_SHEET_DATA: GoogleSheetDB = {
       recentActivity: "Approved 3 concept variations and synthesized visual feedback.",
       workloadProgress: 58,
       avatarColor: "text-purple-400 bg-purple-500/10",
+      tokenInput: 45000,
+      tokenOutput: 12000,
+      runCount: 18,
+      estimatedCost: 0.85,
     },
     {
       id: "agent_doc",
@@ -365,6 +442,10 @@ export const INITIAL_SHEET_DATA: GoogleSheetDB = {
       recentActivity: "Extracted 14 key clauses from Galaxy Studio contract.",
       workloadProgress: 41,
       avatarColor: "text-orange-400 bg-orange-500/10",
+      tokenInput: 32000,
+      tokenOutput: 4500,
+      runCount: 12,
+      estimatedCost: 0.35,
     },
     {
       id: "agent_admin",
@@ -375,6 +456,10 @@ export const INITIAL_SHEET_DATA: GoogleSheetDB = {
       recentActivity: "Processed 6 access requests and resolved workspace block.",
       workloadProgress: 27,
       avatarColor: "text-blue-400 bg-blue-500/10",
+      tokenInput: 2100,
+      tokenOutput: 400,
+      runCount: 8,
+      estimatedCost: 0.01,
     }
   ],
   tasks: [
@@ -382,7 +467,7 @@ export const INITIAL_SHEET_DATA: GoogleSheetDB = {
     { id: "task_2", taskName: "Approve creative concept v2", priority: "Medium", assignedAgent: "Creative Agent", status: "Waiting Input", dueTime: "Today 5:00 PM" },
     { id: "task_3", taskName: "Analyze marketing contract", priority: "Medium", assignedAgent: "Document Agent", status: "Running", dueTime: "Tomorrow 10:00 AM" },
     { id: "task_4", taskName: "Update project risk register", priority: "Low", assignedAgent: "PM Agent", status: "Running", dueTime: "Tomorrow 2:00 PM" },
-    { id: "task_5", taskName: "Process vendor payment", priority: "High", assignedAgent: "Finance Agent", status: "Pending", dueTime: "June 20, 2026" }
+    { id: "task_5", taskName: "Process vendor payment", priority: "High", assignedAgent: "Finance Agent", status: "Pending", dueTime: "20/06/2026" }
   ],
   agentPerformance: {
     completionRate: 92,
@@ -392,10 +477,9 @@ export const INITIAL_SHEET_DATA: GoogleSheetDB = {
     blockedTasksCount: 4,
     blockedTasksChange: "2 vs last week",
   },
-  expenseTransactions: mappedExpenses,
 };
 
-const LOCAL_STORAGE_KEY = "anphim_os_google_sheet_data_v16";
+const LOCAL_STORAGE_KEY = "anphim_os_google_sheet_data_v27";
 
 // Retrieve DB from local storage or fall back to mock data
 export function getStoredSheetData(): GoogleSheetDB {
@@ -405,6 +489,10 @@ export function getStoredSheetData(): GoogleSheetDB {
       const parsed = JSON.parse(rawData);
       // Perform simple validation to make sure it contains elements
       if (parsed.projects && parsed.projects.length > 0) {
+        // Enforce dynamic calculation of cashAvailable from stored values to ensure consistency
+        const totalReceived = parsed.projects.reduce((sum: any, p: any) => sum + (p.received || 0), 0);
+        const totalExpense = parsed.expenses ? parsed.expenses.reduce((sum: any, e: any) => sum + (e.amount || 0), 0) : 0;
+        parsed.dashboard.cashAvailable = (totalReceived * 0.92) - totalExpense;
         return parsed;
       }
     }
@@ -440,6 +528,11 @@ export function setStoredSheetData(data: GoogleSheetDB) {
     // Total actions count
     updatedData.dashboard.actionsCount = updatedData.actions.length;
     updatedData.dashboard.actionsCompletedCount = updatedData.actions.filter(a => a.status === "Done").length;
+
+    // Total cash available
+    const totalReceived = updatedData.projects.reduce((sum, p) => sum + p.received, 0);
+    const totalExpense = updatedData.expenses.reduce((sum, e) => sum + e.amount, 0);
+    updatedData.dashboard.cashAvailable = (totalReceived * 0.92) - totalExpense;
 
     // Save
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedData));

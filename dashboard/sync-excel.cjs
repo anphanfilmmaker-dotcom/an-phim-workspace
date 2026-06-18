@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const chokidar = require('chokidar');
 
-const EXCEL_PATH = 'E:/agent/Project Management.xlsx';
+const EXCEL_PATH = 'E:/agent/Database/Project Management.xlsx';
 const OUTPUT_PATH = path.join(__dirname, 'src', 'excelData.json');
 
 function syncExcel() {
@@ -25,6 +25,11 @@ function syncExcel() {
       expense: getSheetData('Expense'),
       income: getSheetData('Income'),
       giayTo: getSheetData('Giấy tờ'),
+      documents: getSheetData('Documents'),
+      alerts: getSheetData('Alerts'),
+      actions: getSheetData('Actions'),
+      tasks: getSheetData('Tasks'),
+      agents: getSheetData('Agents'),
     };
 
     fs.writeFileSync(OUTPUT_PATH, JSON.stringify(data, null, 2), 'utf-8');

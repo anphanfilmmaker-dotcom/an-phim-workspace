@@ -140,15 +140,19 @@ export default function ProjectsPage({
     "Hoàn thành": 6
   };
 
-  const parseDateSafe = (dateStr: string) => {
-    if (!dateStr) return 0;
-    const dmyMatch = dateStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  const parseDateSafe = (dateStr: any) => {
+    if (!dateStr && dateStr !== 0) return 0;
+    if (typeof dateStr === "number") {
+      return new Date((dateStr - 25569) * 86400 * 1000).getTime();
+    }
+    const s = String(dateStr).trim();
+    const dmyMatch = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
     if (dmyMatch) {
       return new Date(parseInt(dmyMatch[3]), parseInt(dmyMatch[2]) - 1, parseInt(dmyMatch[1])).getTime();
     }
-    const d = new Date(dateStr).getTime();
+    const d = new Date(s).getTime();
     if (!isNaN(d)) return d;
-    const match = dateStr.match(/Ngày (\d+) tháng (\d+), (\d+)/i);
+    const match = s.match(/Ngày (\d+) tháng (\d+), (\d+)/i);
     if (match) {
       return new Date(parseInt(match[3]), parseInt(match[2]) - 1, parseInt(match[1])).getTime();
     }
@@ -318,6 +322,10 @@ export default function ProjectsPage({
       return String(dueDate);
     }
     const s = String(dueDate).trim();
+    const parsedTime = parseDateSafe(s);
+    if (parsedTime > 0) {
+      return new Date(parsedTime).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+    }
     return s || "—";
   };
 
@@ -339,7 +347,7 @@ export default function ProjectsPage({
           <p className="text-[10px] font-mono text-emerald-400 uppercase tracking-widest">{t.inProgress}</p>
           <div className="flex items-baseline space-x-1.5 mt-1">
             <h4 className="text-xl font-bold text-white font-sans">{inProgressCount}</h4>
-            <span className="text-[10px] text-emerald-300 font-mono">{inProgressCount} {t.activeCampaigns}</span>
+            <span className="text-[10px] text-emerald-300 font-mono">{t.activeCampaigns}</span>
           </div>
         </div>
 
@@ -355,7 +363,7 @@ export default function ProjectsPage({
           <p className="text-[10px] font-mono text-teal-400 uppercase tracking-widest">{t.completed}</p>
           <div className="flex items-baseline space-x-1.5 mt-1">
             <h4 className="text-xl font-bold text-white font-sans">{completedCount}</h4>
-            <span className="text-[10px] text-teal-400 font-mono">{completedCount} {t.completedCountText}</span>
+            <span className="text-[10px] text-teal-400 font-mono">{t.completedCountText}</span>
           </div>
         </div>
 
@@ -604,7 +612,7 @@ export default function ProjectsPage({
                         }}
                       />
                       <strong className="block text-neutral-300 text-[11px] leading-none truncate group-hover:text-emerald-400 transition-colors" title={String(activeFocus.dueDate || "")}>
-                        {activeFocus.dueDate}
+                        {formatDueDate(activeFocus.dueDate)}
                       </strong>
                       <Edit2 className="w-3 h-3 text-neutral-500 group-hover:text-emerald-400 shrink-0" />
                     </div>
@@ -740,13 +748,15 @@ export default function ProjectsPage({
                               <Edit2 className="w-3 h-3" />
                             </button>
                           )}
-                          <span className="text-[10px] text-neutral-500">{ms.date ? ms.date.split(',')[0] : ""}</span>
+                          <span className="text-[10px] text-neutral-500">{ms.date ? formatDueDate(ms.date) : ""}</span>
                         </div>
                       </div>
                     );
                     })}
                   </div>
                 </div>
+
+                {/* DOCUMENT CHECKLIST removed as requested */}
 
                 {activeFocus.notes && !isEditingNotes && (
                   <div className="bg-[#171b21] border border-[#232a32] p-3 rounded-lg text-xs leading-relaxed text-neutral-300 flex items-start space-x-2">

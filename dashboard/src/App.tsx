@@ -260,6 +260,18 @@ export default function App() {
     updateDbState({ ...db, documents: nextDocs });
   };
 
+  // Handler: Sync project document checklist state
+  const handleUpdateProjectDocument = (projectId: string, field: string, value: boolean) => {
+    if (!db.projectDocuments) return;
+    const nextDocs = db.projectDocuments.map((pd) => {
+      if (pd.projectId === projectId) {
+        return { ...pd, [field]: value };
+      }
+      return pd;
+    });
+    updateDbState({ ...db, projectDocuments: nextDocs });
+  };
+
   // Handler: Register brand new project
   const handleAddProject = (newProj: Project) => {
     updateDbState({
@@ -296,11 +308,17 @@ export default function App() {
 
   // Helper: Get 3 most recent operational expenses
   const getRecentExpenses = () => {
-    return [
-      { id: "exp_1", title: "Rental Camera Red V-Raptor", amount: 45000000, date: "Jun 6, 2026", category: "Production" },
-      { id: "exp_2", title: "Freelance Colorist (Cuts)", amount: 18000000, date: "Jun 5, 2026", category: "Freelancer" },
-      { id: "exp_3", title: "Midjourney Pro Multi-Seat", amount: 12000000, date: "Jun 4, 2026", category: "AI Tools" },
-    ];
+    if (!db.expenseTransactions) return [];
+    return [...db.expenseTransactions]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 3)
+      .map(exp => ({
+        id: exp.id,
+        title: exp.description || exp.vendor || exp.category,
+        amount: exp.amount,
+        date: new Date(exp.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase(),
+        category: exp.category
+      }));
   };
 
   // Helper: Get signed or approved documents sorted or padded
@@ -446,10 +464,11 @@ export default function App() {
         </div>
 
         {/* Dynamic Contextual Brief in Sidebar bottom */}
-        <div className="p-3.5 border-t border-[#1e2329]/60 shrink-0">
-          
-          {/* Render for PROJECTS page: Completed Projects */}
-          {activePage === "projects" && (
+        {!isSidebarCollapsed && (
+          <div className="p-3.5 border-t border-[#1e2329]/60 shrink-0">
+            
+            {/* Render for PROJECTS page: Completed Projects */}
+            {activePage === "projects" && (
             <>
               <div className="flex items-center space-x-1.5 mb-2.5 text-[10px] font-mono font-bold tracking-wider text-emerald-400 uppercase">
                 <Film className="w-3.5 h-3.5 text-emerald-400" />
@@ -601,7 +620,8 @@ export default function App() {
             </>
           )}
 
-        </div>
+          </div>
+        )}
 
       </aside>
 
@@ -620,14 +640,11 @@ export default function App() {
             >
               {isSidebarCollapsed ? <ChevronRight className="w-4 h-4 transition" /> : <ChevronLeft className="w-4 h-4 transition" />}
             </button>
-            <span className="text-xs font-mono text-neutral-500 uppercase tracking-widest hidden sm:inline">
-              AN PHIM WORKSPACE //
-            </span>
-            <h2 className="text-sm font-sans font-bold text-white uppercase tracking-wider">
+            <h2 className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-widest">
               {activePage === "overview" && (lang === "en" ? "Coordination Center" : "Trung Tâm Điều Phối")}
-              {activePage === "projects" && (lang === "en" ? "Cinematography Film Projects health directory" : "Danh Sách Trạng Thái Dự Án Phim")}
-              {activePage === "finance" && (lang === "en" ? "Capital Ledger Ledger & Cashflow Analytics" : "Sổ Cái Kế Toán & Phân Tích Dòng Tiền")}
-              {activePage === "agents" && (lang === "en" ? "AI Robotic Workers Health Monitor" : "Giám Sát Sức Khỏe Lực Lượng Nhân Sự AI")}
+              {activePage === "projects" && (lang === "en" ? "Project Overview" : "Tổng quan dự án")}
+              {activePage === "finance" && (lang === "en" ? "Financial Report" : "Báo cáo tài chính")}
+              {activePage === "agents" && (lang === "en" ? "AI Personnel" : "Nhân sự AI")}
               {activePage === "documents" && (lang === "en" ? "Legal contracts & Brief repository" : "Kho Giấy Tờ Pháp Lý & Brief Sáng Tạo")}
             </h2>
           </div>
@@ -707,6 +724,8 @@ export default function App() {
               onAddDocument={handleAddDocument}
               onUpdateDocStatus={handleUpdateDocStatus}
               onDeleteDocument={handleDeleteDocument}
+              onUpdateProjectDocument={handleUpdateProjectDocument}
+              onUpdateProjectNotes={handleUpdateProjectNotes}
               lang={lang}
             />
           )}

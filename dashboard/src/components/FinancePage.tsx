@@ -16,8 +16,20 @@ import {
   Clock,
   CheckCircle,
   FileText,
-  BadgeAlert
+  BadgeAlert,
+  Wallet, Percent, Download, Calendar, Search, SlidersHorizontal, ChevronDown, CheckCircle2, AlertCircle, CircleDashed
 } from "lucide-react";
+
+const CATEGORY_COLORS: Record<string, string> = {
+  "Personal": "bg-emerald-500",
+  "Marketing": "bg-purple-500",
+  "Freelancer": "bg-pink-500",
+  "AI Tools": "bg-blue-500",
+  "Taxe/Fees": "bg-rose-500",
+  "Office/Admin": "bg-cyan-500",
+  "Sales": "bg-orange-500",
+  "Others": "bg-neutral-500",
+};
 import { translations } from "../translations";
 
 interface FinancePageProps {
@@ -97,7 +109,12 @@ export default function FinancePage({
 
   const totalExpense = db.expenses.reduce((sum, e) => sum + e.amount, 0);
 
-  const estimatedProfit = db.projects.reduce((sum, p) => sum + p.budget, 0) - totalExpense;
+  const estimatedProfit = db.projects.reduce((sum, p) => {
+    const projectExpenses = (db.expenseTransactions || [])
+      .filter(e => e.project === p.name)
+      .reduce((s, e) => s + e.amount, 0);
+    return sum + (p.received * 0.92 - projectExpenses);
+  }, 0);
 
   const receivablesList = db.projects
     .filter((p) => p.budget > p.received)
@@ -117,7 +134,7 @@ export default function FinancePage({
       } else if (p.id === "proj_5") {
         statusText = lang === "en" ? "Overdue" : "Quá hạn nộp";
         statusColor = "text-red-400 bg-red-950/30 border-red-900 animate-pulse";
-      } else if (p.dueDate.includes("July") || p.dueDate.includes("July")) {
+      } else if (String(p.dueDate || "").includes("/07/") || String(p.dueDate || "").includes("/08/")) {
         statusText = lang === "en" ? "Due in 34 days" : "Hạn sau 34 ngày";
         statusColor = "text-emerald-400 bg-emerald-950/20 border-emerald-900";
       } else {
@@ -222,13 +239,7 @@ export default function FinancePage({
     return Array.from(new Set(rawExpenses.map(e => e.paymentMethod).filter(Boolean))).sort();
   }, [rawExpenses]);
 
-  const categoryColors = React.useMemo(() => {
-    const map: Record<string, string> = {};
-    db.expenses.forEach(e => {
-      map[e.category] = e.color;
-    });
-    return map;
-  }, [db.expenses]);
+
 
   const availableMonths = React.useMemo(() => {
     const m = new Set<string>();
@@ -265,12 +276,6 @@ export default function FinancePage({
   }, [rawExpenses, filterMonth, filterProject, filterCategory, filterPaymentMethod]);
 
   const pieExpenses = React.useMemo(() => {
-    const colorPalette = [
-      "bg-emerald-500", "bg-amber-500", "bg-orange-500", 
-      "bg-indigo-500", "bg-cyan-500", "bg-purple-500", 
-      "bg-pink-500", "bg-rose-500", "bg-blue-500"
-    ];
-    
     const categoryTotals: Record<string, number> = {};
     let totalAmt = 0;
     filteredExpenses.forEach(e => {
@@ -278,15 +283,15 @@ export default function FinancePage({
       totalAmt += e.amount;
     });
 
-    return Object.keys(categoryTotals).map((cat, idx) => {
+    return Object.keys(categoryTotals).map((cat) => {
       return {
         category: cat,
         amount: categoryTotals[cat],
         percentage: totalAmt > 0 ? Math.round((categoryTotals[cat] / totalAmt) * 100) : 0,
-        color: colorPalette[idx % colorPalette.length]
+        color: CATEGORY_COLORS[cat] || "bg-neutral-500"
       };
     }).sort((a, b) => b.amount - a.amount);
-  }, [filteredExpenses]);
+  }, [filteredExpenses, CATEGORY_COLORS]);
 
   const pieTotalExpense = pieExpenses.reduce((sum, e) => sum + e.amount, 0);
 
@@ -574,7 +579,7 @@ export default function FinancePage({
 
             <div className="flex-1 min-h-[400px] max-h-[500px] overflow-y-auto pr-4">
               {filteredExpenses.map((exp) => {
-                const catColorRaw = categoryColors[exp.category] || 'bg-neutral-500';
+                const catColorRaw = CATEGORY_COLORS[exp.category] || 'bg-neutral-500';
                 const tagTextClass = catColorRaw.replace('bg-', 'text-').replace('-500', '-400');
                 const tagBgClass = catColorRaw.replace('bg-', 'bg-').replace('-500', '-950') + '/40';
 

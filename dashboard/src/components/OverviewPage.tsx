@@ -61,10 +61,12 @@ export default function OverviewPage({
     })
     .slice(0, 3);
 
-  // Grab all pending actions — mỗi item là 1 task riêng biệt
   const pendingActions = db.actions
     .filter((a) => a.status !== "Done")
     .sort((a, b) => a.priorityOrder - b.priorityOrder);
+
+  // Missing documents calculation
+  const missingDocumentsCount = db.projectDocuments?.filter(p => [p.quote, p.contract, p.vatR1, p.vatR2, p.vatR3, p.liquidation].filter(Boolean).length < 6).length || 0;
 
   // Total expense calculation
   const totalExpense = db.expenses.reduce((sum, e) => sum + e.amount, 0);
@@ -202,20 +204,20 @@ export default function OverviewPage({
           </div>
         </div>
 
-        {/* Card 4: CEO Actions */}
+        {/* Card 4: Missing Documents */}
         <div className="bg-[#121417] border border-orange-500/10 rounded-xl p-2 flex flex-col justify-between hover:border-orange-500/30 transition group">
           <div className="flex justify-between items-start">
-            <p className="text-[10px] font-mono text-orange-400 uppercase tracking-wider">{t.ceoActions}</p>
+            <p className="text-[10px] font-mono text-orange-400 uppercase tracking-wider">{lang === "en" ? "Missing Documents" : "Thiếu giấy tờ"}</p>
             <div className="w-6 h-6 rounded-md bg-orange-500/10 flex items-center justify-center border border-orange-500/10 shrink-0">
-              <CheckSquare className="w-3.5 h-3.5 text-orange-400" />
+              <AlertTriangle className="w-3.5 h-3.5 text-orange-400" />
             </div>
           </div>
           <div className="mt-1">
             <h3 className="text-base sm:text-lg lg:text-xl font-bold font-sans text-white tracking-tight leading-snug">
-              {db.dashboard.actionsCount - db.dashboard.actionsCompletedCount}
+              {missingDocumentsCount}
             </h3>
             <p className="text-[10px] text-neutral-450 mt-0.5 font-mono leading-none">
-              {t.tasksLeft.replace("{count}", String(db.dashboard.actionsCount))}
+              {lang === "en" ? "Projects need documents" : "Dự án cần bổ sung"}
             </p>
           </div>
         </div>
@@ -329,9 +331,6 @@ export default function OverviewPage({
                   {t.weeklyFinancialSnapshot}
                 </h3>
                 <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug">{t.weeklyFinancialSnapshotDesc}</p>
-              </div>
-              <div className="text-[10px] font-mono text-neutral-400 bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded leading-none">
-                {lang === "en" ? "Million VND" : "Triệu VND"}
               </div>
             </div>
 

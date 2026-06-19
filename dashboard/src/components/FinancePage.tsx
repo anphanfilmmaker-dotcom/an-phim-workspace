@@ -84,15 +84,15 @@ export default function FinancePage({
       const dayOfWeek = today.getDay();
       const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
       const currentMonday = new Date(today.getTime() + diffToMonday * 86400000);
-      
+
       for (let i = 11; i >= 0; i--) {
         const wMonday = new Date(currentMonday.getTime() - i * 7 * 86400000);
         const wSunday = new Date(wMonday.getTime() + 6 * 86400000);
         wSunday.setHours(23, 59, 59, 999);
-        
+
         dataBuckets.push({
           id: `wk_${11 - i}`,
-          label: `${wMonday.getDate()}/${wMonday.getMonth()+1}`,
+          label: `${wMonday.getDate()}/${wMonday.getMonth() + 1}`,
           startDate: wMonday.getTime(),
           endDate: wSunday.getTime(),
           inflow: 0,
@@ -168,23 +168,23 @@ export default function FinancePage({
     (db.incomes || []).forEach(inc => {
       const d = new Date(inc.date);
       if (!isNaN(d.getTime())) {
-         totalHistoricalNet += inc.amount;
-         if (d.getTime() < firstBucketStartMs) netBeforeFirstBucket += inc.amount;
+        totalHistoricalNet += inc.amount;
+        if (d.getTime() < firstBucketStartMs) netBeforeFirstBucket += inc.amount;
       }
     });
     (db.expenseTransactions || []).forEach(exp => {
       const d = new Date(exp.date);
       if (!isNaN(d.getTime())) {
-         totalHistoricalNet -= exp.amount;
-         if (d.getTime() < firstBucketStartMs) netBeforeFirstBucket -= exp.amount;
+        totalHistoricalNet -= exp.amount;
+        if (d.getTime() < firstBucketStartMs) netBeforeFirstBucket -= exp.amount;
       }
     });
 
     // The cash starts at 0 at the very beginning of tracking history
     let runningCash = netBeforeFirstBucket;
 
-    dataBuckets.forEach(b => { 
-      b.netProfit = b.inflow + b.outflow; 
+    dataBuckets.forEach(b => {
+      b.netProfit = b.inflow + b.outflow;
       runningCash += b.netProfit;
       b.availableCash = runningCash;
     });
@@ -253,13 +253,13 @@ export default function FinancePage({
   const availableWidth = 100 - paddingX * 2;
   const spacing = nItems > 1 ? availableWidth / (nItems - 1) : availableWidth;
 
-  let colWidth = 4.5;
-  if (nItems > 10) colWidth = 2.5; // 12 months
-  else if (nItems < 5) colWidth = 6.5; // 4 quarters
-  else colWidth = 3.8; // 7 days
+  let colWidth = 2.5;
+  if (nItems > 10) colWidth = 1.5; // 12 months
+  else if (nItems < 5) colWidth = 4.0; // 4 quarters
+  else colWidth = 2.5; // 7 days
 
   const groupOffset = colWidth * 1.15;
-  const centerOffset = groupOffset / 2;
+  const centerOffset = (groupOffset + colWidth) / 2;
 
   const translateCategory = (cat: string) => {
     return cat;
@@ -456,7 +456,7 @@ export default function FinancePage({
 
       {/* Cash Flow Graph */}
       <div className="bg-[#121417] p-5 rounded-xl border border-[#1e2329]/80">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 border-b border-[#1e2329]/30 pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-1 border-b border-[#1e2329]/30 pb-4">
           <div>
             <h3 className="text-sm font-sans font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
               <TrendingUp className="w-4 h-4 text-emerald-400" />
@@ -512,18 +512,41 @@ export default function FinancePage({
         </div>
 
         {/* Responsive inline SVG */}
-        <div className="h-32 w-full relative pt-2">
+        <div className="h-36 w-full relative py-2 mb-4">
+          <div className="relative w-full h-full">
 
-          {hoveredCf && (
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-[#1e2329]/95 backdrop-blur border border-emerald-500/20 rounded-md shadow-2xl p-2.5 text-[10px] sm:text-xs z-10 pointer-events-none w-max">
-              <p className="font-bold text-white mb-1.5 border-b border-neutral-700/50 pb-1 font-mono tracking-tight text-center">{hoveredCf.label}</p>
-              <div className="flex flex-col gap-1 font-mono">
-                <span className="text-emerald-400"><span className="text-neutral-400 mr-2">{t.in}:</span> {formatVND(hoveredCf.inflow)}</span>
-                <span className="text-orange-400"><span className="text-neutral-400 mr-2">{t.out}:</span> {formatVND(Math.abs(hoveredCf.outflow))}</span>
-                <span className="text-white pt-1 border-t border-neutral-800 mt-1"><span className="text-neutral-400 mr-2">{lang === "en" ? "Cash:" : "Tiền mặt:"}</span> {formatVND(hoveredCf.availableCash)}</span>
+            {hoveredCf && (
+              <div 
+                className="absolute top-0 bg-[#1e2329]/95 backdrop-blur border border-emerald-500/20 rounded-md shadow-2xl p-2.5 text-[10px] sm:text-xs z-20 pointer-events-none w-max"
+                style={{
+                  left: hoveredCf.xPos < 50 ? `calc(${hoveredCf.xPos}% + 20px)` : `calc(${hoveredCf.xPos}% - 20px)`,
+                  transform: hoveredCf.xPos < 50 ? 'translateX(0)' : 'translateX(-100%)',
+                  marginTop: '-10px'
+                }}
+              >
+                <p className="font-bold text-white mb-1.5 border-b border-neutral-700/50 pb-1 font-mono tracking-tight text-center">
+                  {(() => {
+                    if (timescale === "day" && hoveredCf.dateVal) {
+                      const d = new Date(hoveredCf.dateVal);
+                      if (lang === "vi") {
+                        const weekdays = ["Chủ nhật", "Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy"];
+                        return `${weekdays[d.getDay()]}, ngày ${d.getDate()} tháng ${d.getMonth() + 1}`;
+                      } else {
+                        const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                        const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+                        return `${weekdays[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
+                      }
+                    }
+                    return hoveredCf.label;
+                  })()}
+                </p>
+                <div className="flex flex-col gap-1 font-mono">
+                  <span className="text-emerald-400"><span className="text-neutral-400 mr-2">{t.in}:</span> {formatVND(hoveredCf.inflow)}</span>
+                  <span className="text-orange-400"><span className="text-neutral-400 mr-2">{t.out}:</span> {formatVND(Math.abs(hoveredCf.outflow))}</span>
+                  <span className="text-white pt-1 border-t border-neutral-800 mt-1"><span className="text-neutral-400 mr-2">{lang === "en" ? "Cash:" : "Tiền mặt:"}</span> {formatVND(hoveredCf.availableCash)}</span>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
           <svg viewBox="0 0 100 45" preserveAspectRatio="none" className="w-full h-full overflow-visible">
             <line x1="0" y1="5" x2="100" y2="5" stroke="#1c2229" strokeWidth="0.2" strokeDasharray="1,1" />
@@ -539,9 +562,17 @@ export default function FinancePage({
                 <g
                   key={cf.id}
                   className="group transition cursor-pointer"
-                  onMouseEnter={() => setHoveredCf(cf)}
+                  onMouseEnter={() => setHoveredCf({ ...cf, xPos: 4 + centerOffset + i * spacing })}
                   onMouseLeave={() => setHoveredCf(null)}
                 >
+                  {/* Invisible hitbox for easier hovering, spanning full vertical height */}
+                  <rect
+                    x={xPos - 0.5}
+                    y={0}
+                    width={groupOffset + colWidth + 1}
+                    height={45}
+                    fill="transparent"
+                  />
                   <rect
                     x={xPos}
                     y={22.5 - inflowH}
@@ -576,7 +607,7 @@ export default function FinancePage({
             />
           </svg>
 
-          {/* Draw today's dot */}
+          {/* Draw today's dot using absolute HTML div inside wrapper to prevent SVG distortion */}
           {currentData.filter(cf => cf.isToday).map((cf) => {
             const originalIndex = currentData.findIndex(c => c.id === cf.id);
             const xPos = 4 + centerOffset + originalIndex * spacing;
@@ -591,13 +622,13 @@ export default function FinancePage({
                   left: `${xPos}%`,
                   top: `${topPercent}%`,
                   transform: 'translate(-50%, -50%)',
-                  boxShadow: '0 0 10px rgba(255, 255, 255, 0.8)'
+                  boxShadow: '0 0 8px rgba(255, 255, 255, 1)'
                 }}
               />
             );
           })}
 
-          <div className="absolute bottom-[-10px] left-0 right-0 h-4">
+          <div className="absolute bottom-[-24px] left-0 right-0 h-4">
             {currentData.map((cf, i) => {
               const centerPercent = 4 + centerOffset + i * spacing;
               return (
@@ -615,6 +646,8 @@ export default function FinancePage({
               );
             })}
           </div>
+
+        </div> {/* End of inner wrapper */}
         </div>
       </div>
 

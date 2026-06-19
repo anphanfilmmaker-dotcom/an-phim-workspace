@@ -71,8 +71,46 @@ export default function OverviewPage({
   // Total expense calculation
   const totalExpense = db.expenses.reduce((sum, e) => sum + e.amount, 0);
 
-  // Chỉ lấy tuần gần nhất (7 entries cuối)
-  const recentCashFlow = db.cashFlow.slice(-7);
+  // Tính toán dòng tiền 7 ngày gần nhất dựa trên incomes và expenseTransactions
+  const recentCashFlow = React.useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const buckets: any[] = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(today.getTime() - i * 86400000);
+      buckets.push({
+        id: `d_${d.getTime()}`,
+        label: `${d.getDate()}/${d.getMonth()+1}`,
+        dateVal: d.getTime(),
+        inflow: 0,
+        outflow: 0,
+        netProfit: 0
+      });
+    }
+
+    const processItem = (dateStr: string, amount: number, isIncome: boolean) => {
+      if (!dateStr || !amount) return;
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return;
+      
+      const itemTime = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+      const bucket = buckets.find(b => b.dateVal === itemTime);
+      if (bucket) {
+        if (isIncome) bucket.inflow += amount;
+        else bucket.outflow += amount;
+      }
+    };
+
+    (db.incomes || []).forEach(inc => processItem(inc.date, inc.amount, true));
+    (db.expenseTransactions || []).forEach(exp => processItem(exp.date, exp.amount, false));
+
+    buckets.forEach(b => {
+      b.netProfit = b.inflow - b.outflow;
+    });
+
+    return buckets;
+  }, [db.incomes, db.expenseTransactions]);
 
   // Let's compute some nice SVG metrics for Cash Flow (A dual green–orange bar graph with white trendline for net profit)
   const maxCfVal = Math.max(...recentCashFlow.map(cf => Math.max(cf.inflow, Math.abs(cf.outflow))) || [1]);
@@ -149,70 +187,70 @@ export default function OverviewPage({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 shrink-0">
 
         {/* Card 1: Cash Available */}
-        <div className="bg-[#121417] border border-[#1e2329]/80 rounded-xl p-2 flex flex-col justify-between hover:border-emerald-500/20 transition group">
-          <div className="flex justify-between items-start">
+        <div className="bg-[#121417] border border-[#1e2329]/80 rounded-xl py-2 pr-2 pl-[16px] flex flex-col hover:border-emerald-500/20 transition group">
+          <div className="flex justify-between items-center">
             <p className="text-[10px] font-mono text-neutral-450 uppercase tracking-wider">{t.cashAvailable}</p>
             <div className="w-6 h-6 rounded-md bg-emerald-500/10 flex items-center justify-center border border-emerald-500/10 shrink-0">
               <DollarSign className="w-3.5 h-3.5 text-[#10B981]" />
             </div>
           </div>
-          <div className="mt-1">
+          <div>
             <h3 className="text-base sm:text-lg lg:text-xl font-bold font-sans text-white tracking-tight leading-snug">
               {formatVND(db.dashboard.cashAvailable)}
             </h3>
             <div className="flex items-center space-x-1 mt-0.5 text-[10px] text-[#10B981] font-mono leading-none">
               <TrendingUp className="w-3 h-3" />
-              <span>{db.dashboard.cashAvailableChange}</span>
+              <span>{lang === "en" ? db.dashboard.cashAvailableChange.replace("so với tuần trước", "vs last week") : db.dashboard.cashAvailableChange.replace("vs last week", "so với tuần trước")}</span>
             </div>
           </div>
         </div>
 
         {/* Card 2: Receivable */}
-        <div className="bg-[#121417] border border-[#1e2329]/80 rounded-xl p-2 flex flex-col justify-between hover:border-emerald-500/20 transition group">
-          <div className="flex justify-between items-start">
+        <div className="bg-[#121417] border border-[#1e2329]/80 rounded-xl py-2 pr-2 pl-[16px] flex flex-col hover:border-emerald-500/20 transition group">
+          <div className="flex justify-between items-center">
             <p className="text-[10px] font-mono text-neutral-450 uppercase tracking-wider">{t.receivable}</p>
             <div className="w-6 h-6 rounded-md bg-emerald-500/10 flex items-center justify-center border border-emerald-500/10 shrink-0">
               <FileCheck className="w-3.5 h-3.5 text-emerald-400" />
             </div>
           </div>
-          <div className="mt-1">
+          <div>
             <h3 className="text-base sm:text-lg lg:text-xl font-bold font-sans text-white tracking-tight leading-snug">
               {formatVND(db.dashboard.receivable)}
             </h3>
             <div className="flex items-center space-x-1 mt-0.5 text-[10px] text-[#10B981] font-mono leading-none">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>{db.dashboard.receivableChange}</span>
+              <span>{lang === "en" ? db.dashboard.receivableChange.replace("so với tuần trước", "vs last week") : db.dashboard.receivableChange.replace("vs last week", "so với tuần trước")}</span>
             </div>
           </div>
         </div>
 
         {/* Card 3: Active Projects */}
-        <div className="bg-[#121417] border border-[#1e2329]/80 rounded-xl p-2 flex flex-col justify-between hover:border-emerald-500/20 transition group">
-          <div className="flex justify-between items-start">
+        <div className="bg-[#121417] border border-[#1e2329]/80 rounded-xl py-2 pr-2 pl-[16px] flex flex-col hover:border-emerald-500/20 transition group">
+          <div className="flex justify-between items-center">
             <p className="text-[10px] font-mono text-neutral-450 uppercase tracking-wider">{t.activeProjects}</p>
             <div className="w-6 h-6 rounded-md bg-emerald-500/10 flex items-center justify-center border border-emerald-500/10 shrink-0">
               <Briefcase className="w-3.5 h-3.5 text-[#10B981]" />
             </div>
           </div>
-          <div className="mt-1">
+          <div>
             <h3 className="text-base sm:text-lg lg:text-xl font-bold font-sans text-white tracking-tight leading-snug">
               {db.dashboard.activeProjectsCount}
             </h3>
             <div className="flex items-center space-x-1 mt-0.5 text-[10px] text-[#10B981] font-mono leading-none">
-              <span>↑ {db.dashboard.activeProjectsChange}</span>
+              <span>{lang === "en" ? db.dashboard.activeProjectsChange.replace("so với tuần trước", "vs last week") : db.dashboard.activeProjectsChange.replace("vs last week", "so với tuần trước")}</span>
             </div>
           </div>
         </div>
 
         {/* Card 4: Missing Documents */}
-        <div className="bg-[#121417] border border-orange-500/10 rounded-xl p-2 flex flex-col justify-between hover:border-orange-500/30 transition group">
-          <div className="flex justify-between items-start">
+        <div className="bg-[#121417] border border-orange-500/10 rounded-xl py-2 pr-2 pl-[16px] flex flex-col hover:border-orange-500/30 transition group">
+          <div className="flex justify-between items-center">
             <p className="text-[10px] font-mono text-orange-400 uppercase tracking-wider">{lang === "en" ? "Missing Documents" : "Thiếu giấy tờ"}</p>
             <div className="w-6 h-6 rounded-md bg-orange-500/10 flex items-center justify-center border border-orange-500/10 shrink-0">
               <AlertTriangle className="w-3.5 h-3.5 text-orange-400" />
             </div>
           </div>
-          <div className="mt-1">
+          <div>
             <h3 className="text-base sm:text-lg lg:text-xl font-bold font-sans text-white tracking-tight leading-snug">
               {missingDocumentsCount}
             </h3>
@@ -232,7 +270,7 @@ export default function OverviewPage({
 
           {/* Section A: Project Overview */}
           <div className="flex flex-col md:flex-[1.2] md:min-h-0 py-1">
-            <div className="flex justify-between items-center mb-2 shrink-0">
+            <div className="flex justify-between items-center mb-2 pl-[16px] pr-2 shrink-0">
               <div>
                 <h3 className="text-[11px] sm:text-xs font-mono font-bold text-[#10B981] uppercase tracking-wider">
                   {t.projectOverview}
@@ -325,7 +363,7 @@ export default function OverviewPage({
 
           {/* Section B: Finance Snapshot charts */}
           <div className="flex flex-col md:flex-[1.1] md:min-h-0 min-h-0 py-1">
-            <div className="flex justify-between items-center mb-1.5 px-0.5 shrink-0">
+            <div className="flex justify-between items-center mb-1.5 pl-[16px] pr-2 shrink-0">
               <div>
                 <h3 className="text-[11px] sm:text-xs font-mono font-bold text-[#10B981] uppercase tracking-wider">
                   {t.weeklyFinancialSnapshot}
@@ -337,7 +375,7 @@ export default function OverviewPage({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:flex-1 md:overflow-hidden min-h-0">
 
               {/* Chart 1: Cash Flow Dual Bars */}
-              <div className="bg-[#171b21] rounded-xl p-2 border border-[#232a32] flex flex-col justify-between md:h-full md:overflow-hidden min-h-0">
+              <div className="bg-[#171b21] rounded-xl py-2 pr-2 pl-[16px] border border-[#232a32] flex flex-col justify-between md:h-full md:overflow-hidden min-h-0">
                 <div className="flex justify-between items-center mb-1.5 shrink-0">
                   <span className="text-[10px] font-mono text-neutral-350 font-medium">{t.weeklyCashFlowTrend}</span>
                   <div className="flex items-center space-x-2 text-[10px] font-mono">
@@ -364,7 +402,9 @@ export default function OverviewPage({
                     <line x1="0" y1="45" x2="100" y2="45" stroke="#1f2730" strokeWidth="0.25" strokeDasharray="1,1" />
 
                     {recentCashFlow.map((cf, i) => {
-                      const xPos = 4 + i * 14;
+                      const spacing = 96 / (recentCashFlow.length - 1 || 1);
+                      const barWidth = 1.2;
+                      const xPos = 2 + i * spacing;
                       const inflowYPercent = Math.min(20, (cf.inflow / maxCfVal) * 20);
                       const outflowYPercent = Math.min(20, (Math.abs(cf.outflow) / maxCfVal) * 20);
                       const inflowY = 27.5 - inflowYPercent;
@@ -373,20 +413,20 @@ export default function OverviewPage({
                       return (
                         <g key={cf.id} className="group cursor-pointer">
                           <rect
-                            x={xPos}
+                            x={xPos - barWidth}
                             y={inflowY}
-                            width="4"
+                            width={barWidth}
                             height={inflowYPercent}
                             className="fill-emerald-500/85 transition"
-                            rx="0.5"
+                            rx="0.2"
                           />
                           <rect
-                            x={xPos + 4.5}
+                            x={xPos + 0.2}
                             y={outflowY}
-                            width="4"
+                            width={barWidth}
                             height={outflowYPercent}
                             className="fill-orange-500/85 transition"
-                            rx="0.5"
+                            rx="0.2"
                           />
                         </g>
                       );
@@ -394,18 +434,20 @@ export default function OverviewPage({
 
                     <path
                       d={recentCashFlow.map((cf, i) => {
-                        const xPos = 8.25 + i * 14;
+                        const spacing = 96 / (recentCashFlow.length - 1 || 1);
+                        const xPos = 2 + i * spacing;
                         const scaling = (cf.netProfit / maxCfVal) * 20;
                         const yPos = 27.5 - scaling;
                         return `${i === 0 ? "M" : "L"} ${xPos} ${yPos}`;
                       }).join(" ")}
                       fill="none"
                       stroke="#ffffff"
-                      strokeWidth="0.75"
+                      strokeWidth="0.5"
                     />
 
                     {recentCashFlow.map((cf, i) => {
-                      const xPos = 8.25 + i * 14;
+                      const spacing = 96 / (recentCashFlow.length - 1 || 1);
+                      const xPos = 2 + i * spacing;
                       const scaling = (cf.netProfit / maxCfVal) * 20;
                       const yPos = 27.5 - scaling;
                       return (
@@ -413,24 +455,18 @@ export default function OverviewPage({
                           key={cf.id}
                           cx={xPos}
                           cy={yPos}
-                          r="1"
+                          r="0.5"
                           className="fill-neutral-900 stroke-white cursor-pointer"
-                          strokeWidth="0.5"
+                          strokeWidth="0.3"
                         />
                       );
                     })}
                   </svg>
-
-                  <div className="absolute bottom-0 left-0 right-0 flex justify-between px-1 text-[8.5px] text-neutral-450 font-mono">
-                    {recentCashFlow.map(cf => (
-                      <span key={cf.id}>{cf.label.split(',')[0]}</span>
-                    ))}
-                  </div>
                 </div>
               </div>
 
               {/* Chart 2: Capital Expense Breakdown — gom nhóm nhỏ thành "Khác" */}
-              <div className="bg-[#171b21] rounded-xl p-2 border border-[#232a32] flex flex-col justify-between md:h-full md:overflow-hidden min-h-0">
+              <div className="bg-[#171b21] rounded-xl py-2 pr-2 pl-[16px] border border-[#232a32] flex flex-col justify-between md:h-full md:overflow-hidden min-h-0">
                 <div className="flex justify-between items-center mb-1.5 shrink-0">
                   <span className="text-[10px] font-mono text-neutral-350 font-medium">{t.expenseDistribution}</span>
                   <span className="text-[10px] font-mono font-bold text-[#10B981]">{formatVND(totalExpense)}</span>
@@ -510,7 +546,7 @@ export default function OverviewPage({
           />
 
           {/* Section E: Waiting for CEO Decision counter */}
-          <div className="bg-[#121417] rounded-xl border border-orange-500/10 p-3 flex items-center justify-between bg-gradient-to-br from-[#121417] via-[#121417] to-orange-500/5 hover:border-orange-500/25 transition shrink-0">
+          <div className="bg-[#121417] rounded-xl border border-orange-500/10 py-3 pr-3 pl-[16px] flex items-center justify-between bg-gradient-to-br from-[#121417] via-[#121417] to-orange-500/5 hover:border-orange-500/25 transition shrink-0">
             <div className="space-y-0.5 pr-2">
               <h4 className="text-[10px] font-mono text-orange-400 uppercase tracking-widest leading-none">
                 {t.pendingCeoDecisions}
@@ -596,7 +632,7 @@ function TodayTasksPanel({
   };
 
   return (
-    <div className="bg-[#121417] rounded-xl border border-[#1e2329]/85 p-2 flex-1 flex flex-col min-h-0 md:overflow-hidden">
+    <div className="bg-[#121417] rounded-xl border border-[#1e2329]/85 py-2 pr-2 pl-[16px] flex-1 flex flex-col min-h-0 md:overflow-hidden">
       <h3 className="text-[11px] sm:text-xs font-mono text-orange-400 uppercase tracking-widest mb-2 shrink-0">
         {t.todaysPriorityActions}
       </h3>

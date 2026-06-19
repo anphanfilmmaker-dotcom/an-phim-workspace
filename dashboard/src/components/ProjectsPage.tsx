@@ -330,7 +330,7 @@ export default function ProjectsPage({
   };
 
   return (
-    <div className="space-y-6 animate-fade-in text-white">
+    <div className="space-y-3 animate-fade-in text-white">
       
       {/* Top statistics overview cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

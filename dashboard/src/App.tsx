@@ -630,7 +630,7 @@ export default function App() {
       <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#0A0C0E]">
         
         {/* TOP BAR / NAVIGATION HEADER HEADER */}
-        <header className="h-16 bg-[#0E1012]/85 flex items-center justify-between pl-3 pr-6 shrink-0 relative z-30 select-none">
+        <header className="h-16 bg-transparent flex items-center justify-between pl-3 pr-6 shrink-0 relative z-30 select-none">
           
           <div className="flex items-center space-x-3">
             {/* Sidebar collapse toggle */}

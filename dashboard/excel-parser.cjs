@@ -363,13 +363,35 @@ async function syncExcelToDatabase(dbRun, dbQuery) {
   // Load Today Tasks
   const todayTasksFile = 'g:/My Drive/[ANPHIM] MASTER PLANN/.agent/guidelines/Today_Tasks.md';
   if (fs.existsSync(todayTasksFile)) {
-    const lines = fs.readFileSync(todayTasksFile, 'utf8').split('\\n');
+    const content = fs.readFileSync(todayTasksFile, 'utf8');
+    const lines = content.replace(/\\n/g, '\n').split(/\r?\n/);
+    
+    let groups = [];
+    let currentDate = 'General';
+    let currentAgent = 'PM Agent';
+    
+    for (let line of lines) {
+      line = line.trim();
+      if (line.startsWith('# ')) {
+        currentDate = line.replace('# ', '').trim();
+      } else if (line.startsWith('## ')) {
+        currentAgent = line.replace('## ', '').trim();
+      } else if (line.startsWith('- [ ]') || line.startsWith('- [x]') || line.startsWith('- [X]')) {
+        let group = groups.find(g => g.date === currentDate && g.agent === currentAgent);
+        if (!group) {
+          group = { date: currentDate, agent: currentAgent, tasks: [] };
+          groups.push(group);
+        }
+        group.tasks.push(line);
+      }
+    }
+
     let actIdx = 1;
-    for (const line of lines) {
-      if (line.includes('- [ ]')) {
-        const title = line.replace('- [ ]', '').trim();
+    for (const g of groups) {
+      if (g.tasks.length > 0) {
+        const title = g.tasks.join('\n');
         dbRun("INSERT INTO actions (id, priorityOrder, title, project, priorityLevel, suggestedAgent, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
-          `act_${actIdx}`, actIdx, title, 'General', 'High', 'PM Agent', 'Pending', ''
+          `act_${actIdx}`, actIdx, title, g.date, 'High', g.agent, 'Pending', ''
         ]);
         actIdx++;
       }

@@ -13,8 +13,9 @@ import FinancePage from "./components/FinancePage";
 import AgentsPage from "./components/AgentsPage";
 import DocumentsPage from "./components/DocumentsPage";
 import SheetSimulator from "./components/SheetSimulator";
-
-import { 
+import SchedulePage from "./components/SchedulePage";
+import MiniCalendarPopover from "./components/MiniCalendarPopover"; 
+import {
   Home, 
   Film, 
   DollarSign, 
@@ -34,7 +35,7 @@ import {
 } from "lucide-react";
 import { translations } from "./translations";
 
-type PageId = "overview" | "projects" | "finance" | "agents" | "documents";
+type PageId = "overview" | "projects" | "finance" | "agents" | "documents" | "schedule";
 
 export default function App() {
   // Main Database State initialized from reactive LocalStorage layer
@@ -119,34 +120,35 @@ export default function App() {
   };
 
   // Fetch real data from the Backend API on load
-  useEffect(() => {
-    fetch('/api/db')
-      .then(res => {
-        if (!res.ok) throw new Error("API response not ok");
-        return res.json();
-      })
-      .then(data => {
-        if (data && data.projects) {
-          const safeDb: GoogleSheetDB = {
-            ...db,
-            ...data,
-            projects: (data.projects || []).map(normalizeProject),
-            cashFlow: data.cashFlow || db.cashFlow,
-            expenses: data.expenses || db.expenses,
-            alerts: data.alerts || db.alerts,
-            documents: data.documents || db.documents,
-            actions: data.actions || db.actions,
-            agents: data.agents || db.agents,
-            tasks: data.tasks || db.tasks,
-            incomes: data.incomes || db.incomes
-          };
-          updateDbState(safeDb);
-        }
-      })
-      .catch(err => {
-        console.error("Failed to load live database from Backend API:", err);
-      });
-  }, []);
+  // useEffect(() => {
+  //   fetch('/api/db')
+  //     .then(res => {
+  //       if (!res.ok) throw new Error("API response not ok");
+  //       return res.json();
+  //     })
+  //     .then(data => {
+  //       if (data && data.projects) {
+  //         const safeDb: GoogleSheetDB = {
+  //           ...db,
+  //           ...data,
+  //           projects: (data.projects || []).map(normalizeProject),
+  //           cashFlow: data.cashFlow || db.cashFlow,
+  //           expenses: data.expenses || db.expenses,
+  //           alerts: data.alerts || db.alerts,
+  //           documents: data.documents || db.documents,
+  //           actions: data.actions || db.actions,
+  //           agents: data.agents || db.agents,
+  //           tasks: data.tasks || db.tasks,
+  //           incomes: data.incomes || db.incomes,
+  //           schedule: data.schedule || db.schedule
+  //         };
+  //         updateDbState(safeDb);
+  //       }
+  //     })
+  //     .catch(err => {
+  //       console.error("Failed to load live database from Backend API:", err);
+  //     });
+  // }, []);
 
   // Handler: Select a project and slide focus automatically
   const handleSelectProject = (projectId: string) => {
@@ -446,6 +448,21 @@ export default function App() {
               {!isSidebarCollapsed && <span>{t.documents}</span>}
             </button>
 
+            {/* Nav 4.5: Schedule */}
+            <button
+              id="sidebar_schedule"
+              onClick={() => setActivePage("schedule")}
+              title={isSidebarCollapsed ? (lang === "en" ? "Work Schedule" : "Lịch làm việc") : undefined}
+              className={`w-full flex items-center ${isSidebarCollapsed ? "justify-center px-1" : "space-x-3 px-3"} py-2.5 rounded-lg text-[10px] font-mono tracking-wide transition-all outline-none ${
+                activePage === "schedule"
+                  ? "bg-emerald-950/20 border border-[#10B981]/30 text-[#10B981] font-bold"
+                  : "text-neutral-400 hover:text-white border border-transparent hover:bg-neutral-900"
+              }`}
+            >
+              <Calendar className="w-4 h-4 shrink-0" />
+              {!isSidebarCollapsed && <span>{lang === "en" ? "WORK SCHEDULE" : "LỊCH LÀM VIỆC"}</span>}
+            </button>
+
             {/* Nav 5: AI Agents */}
             <button
               id="sidebar_agents"
@@ -627,10 +644,10 @@ export default function App() {
       </aside>
 
       {/* CORE CONTENT SHEATH CONTAINER */}
-      <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#0A0C0E]">
+      <main className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto custom-scrollbar bg-[#0A0C0E]">
         
         {/* TOP BAR / NAVIGATION HEADER HEADER */}
-        <header className="h-16 bg-transparent flex items-center justify-between pl-3 pr-6 shrink-0 relative z-30 select-none">
+        <header className="sticky top-0 bg-[#0A0C0E] flex items-center justify-between pl-3 pr-6 shrink-0 z-50 select-none min-h-[64px] h-auto py-2">
           
           <div className="flex items-center space-x-3">
             {/* Sidebar collapse toggle */}
@@ -641,13 +658,31 @@ export default function App() {
             >
               {isSidebarCollapsed ? <ChevronRight className="w-4 h-4 transition" /> : <ChevronLeft className="w-4 h-4 transition" />}
             </button>
-            <h2 className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-widest">
-              {activePage === "overview" && (lang === "en" ? "Coordination Center" : "Trung Tâm Điều Phối")}
-              {activePage === "projects" && (lang === "en" ? "Project Overview" : "Tổng quan dự án")}
-              {activePage === "finance" && (lang === "en" ? "Financial Report" : "Báo cáo tài chính")}
-              {activePage === "agents" && (lang === "en" ? "AI Personnel" : "Nhân sự AI")}
-              {activePage === "documents" && (lang === "en" ? "Legal contracts & Brief repository" : "Kho Giấy Tờ Pháp Lý & Brief Sáng Tạo")}
-            </h2>
+            
+            {activePage === "schedule" ? (
+              <div className="flex items-center gap-2.5 ml-1">
+                <div className="w-[32px] h-[32px] rounded-[10px] bg-[#0c0602] border border-[#ea580c]/50 flex items-center justify-center shadow-lg relative shrink-0">
+                  <Calendar className="w-4 h-4 text-[#f97316]" strokeWidth={1.5} />
+                  <span className="absolute text-[6px] font-bold text-[#f97316] top-[13px]">13</span>
+                </div>
+                <div className="flex flex-col justify-center">
+                  <h1 className="text-[14px] font-mono font-bold tracking-[0.1em] text-[#F5F7FA] uppercase leading-none mb-1">
+                    {lang === "en" ? "WORK SCHEDULE" : "LỊCH LÀM VIỆC"}
+                  </h1>
+                  <p className="text-[9px] font-sans text-[#8B949E] leading-none">
+                    {lang === "en" ? "Personal & Team Schedule Management" : "Quản lý lịch trình cá nhân & nhóm"}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <h2 className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-widest">
+                {activePage === "overview" && (lang === "en" ? "Coordination Center" : "Trung Tâm Điều Phối")}
+                {activePage === "projects" && (lang === "en" ? "Project Overview" : "Tổng quan dự án")}
+                {activePage === "finance" && (lang === "en" ? "Financial Report" : "Báo cáo tài chính")}
+                {activePage === "agents" && (lang === "en" ? "AI Personnel" : "Nhân sự AI")}
+                {activePage === "documents" && (lang === "en" ? "Legal contracts & Brief repository" : "Kho Giấy Tờ Pháp Lý & Brief Sáng Tạo")}
+              </h2>
+            )}
           </div>
 
           <div className="flex items-center space-x-3">
@@ -665,18 +700,19 @@ export default function App() {
               <span>{lang === "en" ? "🇺🇸" : "🇻🇳"}</span>
             </button>
 
-            {/* Dynamic simulated date badge display */}
-            <div className="flex items-center space-x-2 bg-neutral-900 border border-neutral-800 px-3 py-1.5 rounded-lg text-[10px] font-mono text-neutral-300">
-              <Calendar className="w-3.5 h-3.5 text-orange-400" />
-              <span>{lang === "en" ? "Work Schedule" : "Lịch làm việc"}</span>
-            </div>
+            {/* Mini Calendar Popover replaces the previous static button */}
+            <MiniCalendarPopover 
+              events={db.schedule || []} 
+              onNavigateToSchedule={() => setActivePage("schedule")}
+              lang={lang}
+            />
 
           </div>
 
         </header>
 
         {/* CENTRAL VIEW PORT BODY SWITCHER PANEL */}
-        <div id="main-scroll-container" className="flex-1 overflow-y-auto pl-3 pr-6 pb-2 pt-0">
+        <div id="main-scroll-container" className="flex-1 pl-3 pr-6 pb-2 pt-0">
           
           {/* Main conditional page router rendering */}
           {activePage === "overview" && (
@@ -727,6 +763,13 @@ export default function App() {
               onDeleteDocument={handleDeleteDocument}
               onUpdateProjectDocument={handleUpdateProjectDocument}
               onUpdateProjectNotes={handleUpdateProjectNotes}
+              lang={lang}
+            />
+          )}
+
+          {activePage === "schedule" && (
+            <SchedulePage 
+              db={db}
               lang={lang}
             />
           )}

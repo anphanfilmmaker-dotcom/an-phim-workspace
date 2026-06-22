@@ -474,6 +474,35 @@ export const INITIAL_SHEET_DATA: GoogleSheetDB = {
     { id: "task_4", taskName: "Update project risk register", priority: "Low", assignedAgent: "PM Agent", status: "Running", dueTime: "Tomorrow 2:00 PM" },
     { id: "task_5", taskName: "Process vendor payment", priority: "High", assignedAgent: "Finance Agent", status: "Pending", dueTime: "20/06/2026" }
   ],
+  schedule: [
+    { id: "evt-001", title: "Lên ý tưởng TVC", date: "2026-06-03", startTime: "09:00", endTime: "10:30", category: "work", priority: "medium", status: "todo", owner: "An Phan", projectId: "project-tvc-001" },
+    { id: "evt-002", title: "Review kịch bản", date: "2026-06-04", startTime: "10:00", endTime: "11:00", category: "work", priority: "medium", status: "in_progress", owner: "Minh Đan", projectId: "project-film-001" },
+    { id: "evt-003", title: "Dựng phim teaser", date: "2026-06-05", startTime: "13:30", endTime: "16:00", category: "work", priority: "high", status: "todo", owner: "An Phan" },
+    { id: "evt-004", title: "Họp KH: Galaxy Corp", date: "2026-06-06", startTime: "10:00", endTime: "11:30", category: "meeting", priority: "high", status: "todo", owner: "An Phan" },
+    { id: "evt-005", title: "Chỉnh sửa feedback", date: "2026-06-07", startTime: "14:00", endTime: "17:00", category: "work", priority: "medium", status: "todo", owner: "Chí Hải" },
+    { id: "evt-006", title: "Sinh nhật mẹ", date: "2026-06-09", startTime: "19:00", category: "personal", priority: "high", status: "todo", owner: "An Phan" },
+    { id: "evt-007", title: "Sản xuất hậu kỳ", date: "2026-06-10", startTime: "09:30", endTime: "18:00", category: "work", priority: "medium", status: "in_progress", owner: "Minh Đan" },
+    { id: "evt-008", title: "Kiểm tra thiết bị", date: "2026-06-11", startTime: "11:00", category: "work", priority: "low", status: "todo", owner: "An Phan" },
+    { id: "evt-009", title: "Xuất file master", date: "2026-06-12", startTime: "16:00", category: "work", priority: "high", status: "todo", owner: "Chí Hải" },
+    { id: "evt-010", title: "Phỏng vấn ứng viên", date: "2026-06-13", startTime: "11:00", category: "meeting", priority: "medium", status: "todo", owner: "An Phan" },
+    { id: "evt-011", title: "AI Agent báo cáo", date: "2026-06-14", startTime: "08:30", category: "ai_agent", priority: "medium", status: "todo", agent: "Trâm Anh" },
+    { id: "evt-012", title: "Ngủ sớm", date: "2026-06-15", startTime: "22:30", category: "personal", priority: "low", status: "todo", owner: "An Phan" },
+    { id: "evt-013", title: "Jogging buổi sáng", date: "2026-06-16", startTime: "06:00", category: "personal", priority: "low", status: "done", owner: "An Phan" },
+    { id: "evt-014", title: "Họp dự án phim Mùa Hè", date: "2026-06-16", startTime: "14:00", endTime: "15:30", category: "meeting", priority: "high", status: "todo", owner: "An Phan" },
+    { id: "evt-015", title: "Chuẩn bị casting", date: "2026-06-17", startTime: "09:00", category: "work", priority: "medium", status: "todo", owner: "Minh Đan" },
+    { id: "evt-016", title: "Casting diễn viên", date: "2026-06-18", startTime: "13:00", category: "work", priority: "high", status: "todo", owner: "Minh Đan" },
+    { id: "evt-017", title: "Chốt danh sách", date: "2026-06-19", startTime: "15:00", category: "work", priority: "medium", status: "todo", owner: "An Phan" },
+    { id: "evt-018", title: "Họp biên kịch", date: "2026-06-20", startTime: "10:00", category: "meeting", priority: "medium", status: "todo", owner: "An Phan" },
+    { id: "evt-019", title: "Quay ngày 1", date: "2026-06-21", startTime: "07:00", category: "work", priority: "high", status: "todo", owner: "An Phan" },
+    { id: "evt-020", title: "Cafe với đối tác", date: "2026-06-23", startTime: "10:00", category: "meeting", priority: "medium", status: "todo", owner: "An Phan" },
+    { id: "evt-021", title: "Ăn uống lành mạnh", date: "2026-06-24", startTime: "07:00", category: "personal", priority: "low", status: "done", owner: "An Phan" },
+    { id: "evt-022", title: "Đọc kịch bản", date: "2026-06-24", startTime: "20:00", category: "work", priority: "low", status: "todo", owner: "An Phan" },
+    { id: "evt-023", title: "Quay ngày 2", date: "2026-06-25", startTime: "07:00", category: "work", priority: "high", status: "todo", owner: "An Phan" },
+    { id: "evt-024", title: "Quay ngày 3", date: "2026-06-26", startTime: "07:00", category: "work", priority: "high", status: "todo", owner: "An Phan" },
+    { id: "evt-025", title: "Họp tổng kết tiến độ", date: "2026-06-27", startTime: "16:00", category: "meeting", priority: "high", status: "todo", owner: "An Phan" },
+    { id: "evt-026", title: "AI Agent nhắc việc", date: "2026-06-28", startTime: "09:00", category: "ai_agent", priority: "medium", status: "todo", agent: "Trâm Anh" },
+    { id: "evt-027", title: "Gaming với bạn", date: "2026-06-30", startTime: "20:00", category: "personal", priority: "low", status: "todo", owner: "An Phan" }
+  ],
   agentPerformance: {
     completionRate: 92,
     completionRateChange: "8% vs last week",
@@ -484,7 +513,7 @@ export const INITIAL_SHEET_DATA: GoogleSheetDB = {
   },
 };
 
-const LOCAL_STORAGE_KEY = "anphim_os_google_sheet_data_v27";
+const LOCAL_STORAGE_KEY = "anphim_os_google_sheet_data_v32";
 
 // Retrieve DB from local storage or fall back to mock data
 export function getStoredSheetData(): GoogleSheetDB {

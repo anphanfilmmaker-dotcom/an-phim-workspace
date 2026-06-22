@@ -2,16 +2,26 @@
 
 Tài liệu này quy định cách các Agent (như Trâm Anh PM, Quốc Huy Marketing, v.v.) phải tương tác với cơ sở dữ liệu `db.actions` và `db.tasks` của AN PHIM WORKSPACE để giao diện (UI) hiển thị chính xác.
 
-## 1. Tách biệt các đầu việc (Task Granularity)
+## 1. Tách biệt và Phân nhóm Đầu việc (Task Grouping & Granularity)
 
-**Quy định:** Không bao giờ gộp nhiều nhiệm vụ (task) vào cùng một bản ghi (record) trong cơ sở dữ liệu.
-**Sai:** Ghi một chuỗi văn bản dài chứa nhiều đầu việc vào `title` của một hành động duy nhất (ví dụ: `[Sếp] Gửi tài liệu... - [ ] [Hải] Nhắc sếp... - [ ] [Hải] Phác thảo...`).
-**Đúng:** Tạo ra N bản ghi `Action` riêng biệt cho N đầu việc. Ví dụ:
-- Action 1: `title: "[Sếp] Gửi tài liệu brief + ghi chú và mẫu hợp đồng..."`
-- Action 2: `title: "[Hải] Nhắc sếp thảo luận chốt phương án..."`
-- Action 3: `title: "[Hải] Phác thảo phương án tích hợp Creative Studio..."`
+**Quy định:** Giao diện hiển thị (Dashboard) sẽ tự động nhóm các task theo Ngày và Người phụ trách dựa trên cú pháp Markdown của file `Today_Tasks.md`. Agent phải tuân thủ nghiêm ngặt định dạng cấu trúc sau:
 
-Việc này đảm bảo giao diện Dashboard có thể hiển thị mỗi task là một hàng riêng biệt với nút tick hoàn thành riêng rẽ.
+- Dùng `# YYYY-MM-DD` để định nghĩa Ngày.
+- Dùng `## [Tên Agent]` để phân chia các nhóm người phụ trách.
+- Dùng `- [ ] [Tên người thực hiện] Nội dung task` cho từng task riêng lẻ.
+
+**Cú pháp chuẩn:**
+```markdown
+# 2026-06-07
+## PM Agent
+- [ ] [Sếp] Gửi tài liệu brief + ghi chú và mẫu hợp đồng cá nhân
+- [ ] [Hải] Nhắc sếp thảo luận chốt phương án chi tiết
+
+## IT Agent
+- [ ] [Hải] Phác thảo phương án tích hợp Creative Studio
+```
+
+Việc này đảm bảo Parser tự động nhóm đúng (Date, Agent) thành một bản ghi (Card) duy nhất trên giao diện, và mỗi task sẽ là một nút tick hoàn thành riêng rẽ. Không gộp nhiều đầu việc lên cùng 1 dòng `- [ ]`.
 
 ## 2. Backup và lưu trữ Markdown
 

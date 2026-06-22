@@ -187,6 +187,14 @@ async function initDb() {
       project TEXT,
       amount REAL,
       notes TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS schedule (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      date TEXT,
+      time TEXT,
+      type TEXT,
+      participants TEXT
     )`
   ];
 
@@ -283,6 +291,14 @@ async function initDb() {
       project VARCHAR(255),
       amount DOUBLE PRECISION,
       notes TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS schedule (
+      id VARCHAR(50) PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      date VARCHAR(50),
+      time VARCHAR(50),
+      type VARCHAR(50),
+      participants TEXT
     )`
   ];
 
@@ -306,6 +322,26 @@ async function initDb() {
       console.error("Failed to seed database:", e);
     }
   }
+
+  // Populate schedule mock data if empty
+  const scheduleCount = await dbQuery("SELECT COUNT(*) as count FROM schedule");
+  const sCount = isPostgres ? parseInt(scheduleCount[0].count) : scheduleCount[0].count;
+  if (sCount === 0) {
+    console.log("Populating mock schedule data...");
+    const mockSchedule = [
+      { id: "sch_1", title: "Họp chốt phương án VFX", date: "2026-06-22", time: "14:00 - 15:30", type: "Meeting", participants: "Sếp, Trâm Anh, Hải" },
+      { id: "sch_2", title: "Đi khảo sát bối cảnh quay", date: "2026-06-23", time: "08:00 - 12:00", type: "Shoot", participants: "Team Production" },
+      { id: "sch_3", title: "Trình duyệt Draft 1 với Khách hàng", date: "2026-06-23", time: "15:00 - 16:00", type: "Meeting", participants: "Sếp, Trâm Anh" },
+      { id: "sch_4", title: "Deadline nộp kịch bản phân cảnh", date: "2026-06-24", time: "18:00", type: "Deadline", participants: "Minh Đan" },
+      { id: "sch_5", title: "Brainstorm chiến dịch Marketing Mùa Thu", date: "2026-06-25", time: "10:00 - 11:30", type: "Meeting", participants: "Quốc Huy, Minh Đan" }
+    ];
+    for (const s of mockSchedule) {
+      await dbRun(
+        "INSERT INTO schedule (id, title, date, time, type, participants) VALUES (?, ?, ?, ?, ?, ?)",
+        [s.id, s.title, s.date, s.time, s.type, s.participants]
+      );
+    }
+  }
 }
 
 // REST API Endpoints
@@ -324,6 +360,7 @@ app.get('/api/db', async (req, res) => {
     const recent_expenses = await dbQuery("SELECT * FROM recent_expenses");
     const statsRows = await dbQuery("SELECT * FROM stats");
     const incomes = await dbQuery("SELECT * FROM incomes");
+    const schedule = await dbQuery("SELECT * FROM schedule");
 
     // Parse JSON strings back to arrays/objects where applicable
     const parsedProjects = projects.map(p => ({
@@ -354,6 +391,7 @@ app.get('/api/db', async (req, res) => {
       tasks,
       recent_expenses,
       incomes,
+      schedule,
       agentPerformance: statsObj.agentPerformance || {}
     });
   } catch (err) {

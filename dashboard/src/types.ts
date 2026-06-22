@@ -151,6 +151,22 @@ export interface ProjectDocumentSet {
   liquidation: boolean;
 }
 
+// Structuring a schedule event
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  description?: string;
+  startTime: string;
+  endTime?: string;
+  date: string; // YYYY-MM-DD
+  category: "work" | "personal" | "meeting" | "ai_agent" | "other";
+  priority: "low" | "medium" | "high";
+  status: "todo" | "in_progress" | "done";
+  owner?: string;
+  agent?: string;
+  projectId?: string;
+}
+
 // Representation of Google Sheet database structure
 export interface GoogleSheetDB {
   dashboard: {
@@ -175,6 +191,7 @@ export interface GoogleSheetDB {
   actions: CEOAction[];
   agents: AIAgent[];
   tasks: AgentTask[];
+  schedule: CalendarEvent[];
   agentPerformance: {
     completionRate: number;
     completionRateChange: string;

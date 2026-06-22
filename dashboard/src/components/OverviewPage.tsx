@@ -664,15 +664,14 @@ function TodayTasksPanel({
                   >
                     {translatePriority(act.priorityLevel)}
                   </span>
+                  {/* Project label (Date) */}
+                  <span className="text-[10px] text-neutral-400 font-mono tracking-wide ml-1">{act.project}</span>
                 </div>
                 <span className="text-[10px] text-[#10B981] font-mono bg-emerald-950/30 border border-emerald-950/50 px-1.5 rounded flex items-center space-x-1">
                   <Bot className="w-3 h-3 text-emerald-400" />
-                  <span className="truncate max-w-[80px]">{act.suggestedAgent}</span>
+                  <span className="truncate max-w-[120px]">{act.suggestedAgent}</span>
                 </span>
               </div>
-
-              {/* Project label */}
-              <p className="text-[9.5px] text-neutral-500 font-mono mb-1.5 truncate">{act.project}</p>
 
               {/* Sub-tasks */}
               <div className="space-y-1">

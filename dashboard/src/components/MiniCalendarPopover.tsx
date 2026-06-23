@@ -6,11 +6,15 @@ interface MiniCalendarPopoverProps {
   events: CalendarEvent[];
   onNavigateToSchedule: () => void;
   lang: "en" | "vi";
+  globalCurrentDate: Date;
+  setGlobalCurrentDate: (d: Date) => void;
+  globalSelectedDateStr: string;
+  setGlobalSelectedDateStr: (s: string) => void;
 }
 
-export default function MiniCalendarPopover({ events, onNavigateToSchedule, lang }: MiniCalendarPopoverProps) {
-  const [currentDate, setCurrentDate] = useState(new Date("2026-06-22T00:00:00"));
-  const [selectedDate, setSelectedDate] = useState(new Date("2026-06-22T00:00:00"));
+export default function MiniCalendarPopover({ events, onNavigateToSchedule, lang, globalCurrentDate, setGlobalCurrentDate, globalSelectedDateStr, setGlobalSelectedDateStr }: MiniCalendarPopoverProps) {
+  const currentDate = globalCurrentDate;
+  const setCurrentDate = setGlobalCurrentDate;
   const [isOpen, setIsOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -45,8 +49,7 @@ export default function MiniCalendarPopover({ events, onNavigateToSchedule, lang
     return events.filter(e => e.date === dateStr);
   };
 
-  const selectedDateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
-  const selectedEvents = events.filter(e => e.date === selectedDateStr);
+  const selectedEvents = events.filter(e => e.date === globalSelectedDateStr);
 
   const getEventDotColor = (event: CalendarEvent) => {
     if (event.category === 'meeting' || event.priority === 'high') return 'bg-orange-500';
@@ -110,7 +113,8 @@ export default function MiniCalendarPopover({ events, onNavigateToSchedule, lang
               {/* Days */}
               {Array.from({ length: daysInMonth }).map((_, i) => {
                 const day = i + 1;
-                const isSelected = selectedDate.getDate() === day && selectedDate.getMonth() === currentDate.getMonth() && selectedDate.getFullYear() === currentDate.getFullYear();
+                const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const isSelected = dateStr === globalSelectedDateStr;
                 const dayEvents = getEventsForDate(day);
                 const firstEvent = dayEvents.length > 0 ? dayEvents[0] : null;
 
@@ -133,7 +137,7 @@ export default function MiniCalendarPopover({ events, onNavigateToSchedule, lang
                 }
 
                 return (
-                  <div key={day} className="flex flex-col items-center justify-start relative h-[24px] cursor-pointer group" onClick={() => setSelectedDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), day))}>
+                  <div key={day} className="flex flex-col items-center justify-start relative h-[24px] cursor-pointer group" onClick={() => setGlobalSelectedDateStr(dateStr)}>
                     <div className={`w-[20px] h-[20px] mx-auto flex items-center justify-center rounded-full text-[11px] font-sans transition-all ${bgClass}`}>
                       {day}
                     </div>

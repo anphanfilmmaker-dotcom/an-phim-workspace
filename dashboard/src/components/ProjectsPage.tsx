@@ -19,7 +19,10 @@ import {
   ChevronRight,
   ChevronDown,
   Sparkles,
-  Edit2
+  Edit2,
+  Trash2,
+  Check,
+  X
 } from "lucide-react";
 import { translations } from "../translations";
 
@@ -184,11 +187,14 @@ export default function ProjectsPage({
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [editingMilestoneIndex, setEditingMilestoneIndex] = useState<number | null>(null);
   const [editingMilestoneText, setEditingMilestoneText] = useState("");
+  const [confirmDeleteMilestoneIndex, setConfirmDeleteMilestoneIndex] = useState<number | null>(null);
+
   React.useEffect(() => {
     setNotesText(activeFocus?.notes || "");
     setIsEditingNotes(false);
     setEditingMilestoneIndex(null);
     setEditingMilestoneText("");
+    setConfirmDeleteMilestoneIndex(null);
   }, [activeFocus]);
 
   // Aggregate project statistics
@@ -247,6 +253,23 @@ export default function ProjectsPage({
       onUpdateProject(updated);
     }
     setEditingMilestoneIndex(null);
+  };
+
+  const handleDeleteMilestone = (index: number) => {
+    if (!onUpdateProject || !activeFocus) return;
+    const updated = { ...activeFocus };
+    updated.milestones = updated.milestones.filter((_, i) => i !== index);
+    
+    // Update status if needed after deletion
+    const allCompleted = updated.milestones.length > 0 && updated.milestones.every(m => m.completed);
+    if (allCompleted) {
+      updated.status = "Hoàn thành";
+    } else if (updated.status === "Hoàn thành" && updated.milestones.length > 0) {
+      updated.status = "Đang làm";
+    }
+
+    onUpdateProject(updated);
+    setConfirmDeleteMilestoneIndex(null);
   };
 
   const handleEditDeadline = () => {
@@ -741,14 +764,77 @@ export default function ProjectsPage({
                         </div>
                         <div className="flex items-center space-x-2 shrink-0 ml-2">
                           {!isEditing && (
-                            <button 
-                              onClick={() => handleEditMilestone(index)}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity text-neutral-500 hover:text-emerald-400 cursor-pointer"
-                            >
-                              <Edit2 className="w-3 h-3" />
-                            </button>
+                            <>
+                              {confirmDeleteMilestoneIndex === index ? (
+                                <>
+                                  <button 
+                                    onClick={() => handleDeleteMilestone(index)}
+                                    className="opacity-100 transition-opacity text-[#10B981] hover:text-emerald-400 cursor-pointer mx-1"
+                                    title={lang === "en" ? "Confirm" : "Đồng ý"}
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button 
+                                    onClick={() => setConfirmDeleteMilestoneIndex(null)}
+                                    className="opacity-100 transition-opacity text-red-500 hover:text-red-400 cursor-pointer ml-1"
+                                    title={lang === "en" ? "Cancel" : "Từ chối"}
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button 
+                                    onClick={() => handleEditMilestone(index)}
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-neutral-500 hover:text-emerald-400 cursor-pointer"
+                                    title={lang === "en" ? "Edit milestone name" : "Chỉnh sửa tên task"}
+                                  >
+                                    <Edit2 className="w-3 h-3" />
+                                  </button>
+                                  <button 
+                                    onClick={() => setConfirmDeleteMilestoneIndex(index)}
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-neutral-500 hover:text-orange-500 cursor-pointer"
+                                    title={lang === "en" ? "Delete milestone" : "Xóa task"}
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </>
+                              )}
+                            </>
                           )}
-                          <span className="text-[10px] text-neutral-500">{ms.date ? formatDueDate(ms.date) : ""}</span>
+                          <div className="relative group cursor-pointer flex items-center justify-end min-w-[70px]">
+                            <input
+                              type="date"
+                              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                              onClick={(e) => {
+                                try {
+                                  if ('showPicker' in HTMLInputElement.prototype) {
+                                    e.currentTarget.showPicker();
+                                  }
+                                } catch (err) {}
+                              }}
+                              value={(() => {
+                                const parsed = parseDateSafe(ms.date);
+                                if (!parsed) return "";
+                                const d = new Date(parsed);
+                                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                              })()}
+                              onChange={(e) => {
+                                const newDate = e.target.value;
+                                if (newDate && onUpdateProject && activeFocus) {
+                                  const d = new Date(newDate);
+                                  const formatted = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+                                  const updated = { ...activeFocus };
+                                  updated.milestones = [...updated.milestones];
+                                  updated.milestones[index] = { ...updated.milestones[index], date: formatted };
+                                  onUpdateProject(updated);
+                                }
+                              }}
+                            />
+                            <span className="text-[10px] text-neutral-500 group-hover:text-emerald-400 transition-colors">
+                              {ms.date ? formatDueDate(ms.date) : "---"}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     );

@@ -610,6 +610,16 @@ function splitIntoSubTasks(title: string): string[] {
   return tasks.length > 0 ? tasks : [title.trim()];
 }
 
+function getCategoryTag(category?: string, lang: 'en' | 'vi' = 'vi') {
+  switch (category) {
+    case 'work': return { label: lang === 'en' ? 'Work' : 'Công việc', color: 'text-[#10B981] bg-[#10B981]/10 border-[#10B981]/20' };
+    case 'personal': return { label: lang === 'en' ? 'Personal' : 'Cá nhân', color: 'text-[#06b6d4] bg-[#06b6d4]/10 border-[#06b6d4]/20' };
+    case 'meeting': return { label: lang === 'en' ? 'Meeting' : 'Họp/Sự kiện', color: 'text-[#f97316] bg-[#f97316]/10 border-[#f97316]/20' };
+    case 'ai_agent': return { label: 'AI Agent', color: 'text-[#a855f7] bg-[#a855f7]/10 border-[#a855f7]/20' };
+    default: return null;
+  }
+}
+
 function TodayTasksPanel({
   actions,
   lang,
@@ -648,7 +658,6 @@ function TodayTasksPanel({
               key={act.id}
               className="bg-[#171b21] border border-[#232a32] rounded-xl p-2 transition group"
             >
-              {/* Header: priority badge + agent */}
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5">
                   <div className="w-5 h-5 rounded-full bg-neutral-900 border border-neutral-800 text-[10px] font-sans font-semibold text-neutral-400 flex items-center justify-center shrink-0">
@@ -667,14 +676,22 @@ function TodayTasksPanel({
                   {/* Project label (Date) */}
                   <span className="text-[10px] text-neutral-400 font-mono tracking-wide ml-1">{act.project}</span>
                 </div>
-                <span className="text-[10px] text-[#10B981] font-mono bg-emerald-950/30 border border-emerald-950/50 px-1.5 rounded flex items-center space-x-1">
-                  <Bot className="w-3 h-3 text-emerald-400" />
-                  <span className="truncate max-w-[120px]">{act.suggestedAgent}</span>
-                </span>
+                {act.category ? (() => {
+                  const tag = getCategoryTag(act.category, lang);
+                  return tag ? (
+                    <span className={`text-[9px] font-mono border px-1.5 py-0.5 rounded flex items-center space-x-1 ${tag.color}`}>
+                      <span className="truncate max-w-[120px]">{tag.label}</span>
+                    </span>
+                  ) : null;
+                })() : (
+                  <span className="text-[9px] text-[#10B981] font-mono bg-emerald-950/30 border border-emerald-950/50 px-1.5 py-0.5 rounded flex items-center space-x-1">
+                    <span className="truncate max-w-[120px]">{act.suggestedAgent}</span>
+                  </span>
+                )}
               </div>
 
               {/* Sub-tasks */}
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 {subTasks.map((task, idx) => {
                   const key = `${act.id}_${idx}`;
                   const checked = !!checkedMap[key];
@@ -682,14 +699,14 @@ function TodayTasksPanel({
                   return (
                     <label
                       key={key}
-                      className="flex items-start gap-2 cursor-pointer group/task"
+                      className="flex items-center gap-2 cursor-pointer group/task"
                     >
                       {/* Custom checkbox */}
                       <button
-                        onClick={() => toggle(key, act.id, subTasks)}
-                        className={`mt-0.5 w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-all ${checked
+                        onClick={(e) => { e.preventDefault(); toggle(key, act.id, subTasks); }}
+                        className={`w-3.5 h-3.5 rounded flex items-center justify-center border shrink-0 transition-all ${checked
                           ? "bg-emerald-500 border-emerald-500"
-                          : "bg-transparent border-neutral-600 hover:border-emerald-500/60"
+                          : "bg-transparent border-neutral-600 group-hover/task:border-emerald-500/60"
                           }`}
                         aria-label={checked ? "Bỏ đánh dấu" : "Đánh dấu hoàn thành"}
                       >

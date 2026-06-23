@@ -101,7 +101,6 @@ export interface DocumentItem {
   priorityLevel?: "High" | "Medium" | "Low";
 }
 
-// Structuring a CEO action
 export interface CEOAction {
   id: string;
   priorityOrder: number;
@@ -111,6 +110,7 @@ export interface CEOAction {
   suggestedAgent: string;
   status: "Pending" | "Done" | "Waiting" | "Need Follow-up";
   notes?: string;
+  category?: "work" | "personal" | "meeting" | "ai_agent" | "other";
 }
 
 // Structuring an AI Agent

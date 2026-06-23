@@ -47,6 +47,10 @@ export default function App() {
   }, [INITIAL_SHEET_DATA]);
   const [activePage, setActivePage] = useState<PageId>("overview");
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+
+  // Global Calendar Sync States
+  const [globalCurrentDate, setGlobalCurrentDate] = useState(new Date());
+  const [globalSelectedDateStr, setGlobalSelectedDateStr] = useState<string>("");
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [selectedSimulatedDate, setSelectedSimulatedDate] = useState("May 18, 2025");
   const [globalSearch, setGlobalSearch] = useState("");
@@ -194,6 +198,16 @@ export default function App() {
 
   // Handler: Modify direct action items inline
   const handleUpdateActionStatus = (actionId: string, nextStatus: any) => {
+    if (actionId.startsWith("sync_evt_")) {
+      const eventId = actionId.replace("sync_evt_", "");
+      const currentAggSchedule = getAggregatedSchedule(db);
+      const evt = currentAggSchedule.find(e => e.id === eventId);
+      if (evt) {
+        handleEditEvent({ ...evt, status: nextStatus === "Done" ? "done" : "todo" });
+      }
+      return;
+    }
+
     const nextActions = db.actions.map((act) => {
       if (act.id === actionId) {
         return { ...act, status: nextStatus };
@@ -283,6 +297,153 @@ export default function App() {
     });
   };
 
+  const parseDateSafeToYYYYMMDD = (dateStr: any): string | null => {
+    if (!dateStr && dateStr !== 0) return null;
+    let parsedTime = 0;
+    if (typeof dateStr === "number") {
+      parsedTime = new Date((dateStr - 25569) * 86400 * 1000).getTime();
+    } else {
+      const s = String(dateStr).trim();
+      const dmyMatch = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (dmyMatch) {
+        parsedTime = new Date(parseInt(dmyMatch[3]), parseInt(dmyMatch[2]) - 1, parseInt(dmyMatch[1])).getTime();
+      } else {
+        const d = new Date(s).getTime();
+        if (!isNaN(d)) parsedTime = d;
+        else {
+          const match = s.match(/Ngày (\d+) tháng (\d+), (\d+)/i);
+          if (match) {
+            parsedTime = new Date(parseInt(match[3]), parseInt(match[2]) - 1, parseInt(match[1])).getTime();
+          }
+        }
+      }
+    }
+    if (parsedTime > 0) {
+      const d = new Date(parsedTime);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    return null;
+  };
+
+  const getAggregatedSchedule = (database: GoogleSheetDB): import("./types").CalendarEvent[] => {
+    const events: import("./types").CalendarEvent[] = [...(database.schedule || [])];
+
+    (database.projects || []).forEach(proj => {
+      // Do not show paused projects on the timeline
+      if (proj.status === 'Tạm dừng') return;
+
+      // 1. Project Due Date
+      if (proj.dueDate) {
+        const parsedDue = parseDateSafeToYYYYMMDD(proj.dueDate);
+        if (parsedDue) {
+          events.push({
+            id: `proj_dueDate_${proj.id}`,
+            title: `Deadline: ${proj.name}`,
+            description: proj.notes || `Client: ${proj.client}`,
+            date: parsedDue,
+            startTime: '17:00',
+            category: 'work',
+            priority: 'high',
+            status: proj.status === 'Hoàn thành' ? 'done' : (proj.status === 'Đang làm' ? 'in_progress' : 'todo'),
+            projectId: proj.id
+          });
+        }
+      }
+
+      // 2. Project Milestones
+      (proj.milestones || []).forEach((ms, index) => {
+        if (ms.date) {
+          const parsedMsDate = parseDateSafeToYYYYMMDD(ms.date);
+          if (parsedMsDate) {
+            events.push({
+              id: `proj_milestone_${proj.id}_${index}`,
+              title: `${ms.name} (${proj.name})`,
+              date: parsedMsDate,
+              startTime: '09:00',
+              category: 'work',
+              priority: 'medium',
+              status: ms.completed || proj.status === 'Hoàn thành' ? 'done' : 'todo',
+              projectId: proj.id
+            });
+          }
+        }
+      });
+    });
+
+    return events;
+  };
+
+  const aggregatedDb = { ...db, schedule: getAggregatedSchedule(db) };
+
+  // Handler: Delete Event
+  const handleDeleteEvent = (eventId: string) => {
+    if (eventId.startsWith('proj_dueDate_')) {
+      const projId = eventId.replace('proj_dueDate_', '');
+      const proj = db.projects.find(p => p.id === projId);
+      if (proj) handleUpdateProject({ ...proj, dueDate: "" });
+    } else if (eventId.startsWith('proj_milestone_')) {
+      const parts = eventId.replace('proj_milestone_', '').split('_');
+      const index = parseInt(parts.pop() || "0", 10);
+      const projId = parts.join('_');
+      const proj = db.projects.find(p => p.id === projId);
+      if (proj) {
+        const newProj = { ...proj, milestones: proj.milestones.filter((_, i) => i !== index) };
+        handleUpdateProject(newProj);
+      }
+    } else {
+      updateDbState({
+        ...db,
+        schedule: db.schedule.filter(e => e.id !== eventId)
+      });
+    }
+  };
+
+  // Handler: Edit Event
+  const handleEditEvent = (updatedEvent: import("./types").CalendarEvent) => {
+    if (updatedEvent.id.startsWith('proj_dueDate_')) {
+      const projId = updatedEvent.id.replace('proj_dueDate_', '');
+      const proj = db.projects.find(p => p.id === projId);
+      if (proj) {
+        const parts = updatedEvent.date.split('-');
+        const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+        handleUpdateProject({ ...proj, dueDate: formattedDate });
+      }
+    } else if (updatedEvent.id.startsWith('proj_milestone_')) {
+      const parts = updatedEvent.id.replace('proj_milestone_', '').split('_');
+      const index = parseInt(parts.pop() || "0", 10);
+      const projId = parts.join('_');
+      const proj = db.projects.find(p => p.id === projId);
+      if (proj && proj.milestones[index]) {
+        const dateParts = updatedEvent.date.split('-');
+        const formattedDate = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+        const newProj = { ...proj };
+        newProj.milestones = [...newProj.milestones];
+        // Note: we extract back the name by taking part before " ("
+        const newTitle = updatedEvent.title.includes(' (') ? updatedEvent.title.substring(0, updatedEvent.title.lastIndexOf(' (')) : updatedEvent.title;
+        newProj.milestones[index] = { 
+          ...newProj.milestones[index], 
+          date: formattedDate,
+          name: newTitle,
+          completed: updatedEvent.status === 'done'
+        };
+        handleUpdateProject(newProj);
+      }
+    } else {
+      updateDbState({
+        ...db,
+        schedule: db.schedule.map(e => e.id === updatedEvent.id ? updatedEvent : e)
+      });
+    }
+  };
+
+  // Handler: Add new schedule event
+  const handleAddEvent = (newEvent: import("./types").CalendarEvent) => {
+    updateDbState({
+      ...db,
+      schedule: [...(db.schedule || []), newEvent]
+    });
+  };
+
   // Global Sync logic from Spreadsheet popup
   const handleSpreadsheetSync = (syncedDb: GoogleSheetDB) => {
     updateDbState(syncedDb);
@@ -357,7 +518,7 @@ export default function App() {
       </div>
 
       {/* PERSISTENT LEFT SIDEBAR */}
-      <aside className={`${isSidebarCollapsed ? "w-16" : "w-60"} bg-[#0E1012] border-r border-[#1e2329]/95 flex flex-col justify-between shrink-0 select-none transition-all duration-300`}>
+      <aside className={`${isSidebarCollapsed ? "w-16" : "w-[230px]"} bg-[#0E1012] border-r border-[#1e2329]/95 flex flex-col justify-between shrink-0 select-none transition-all duration-300`}>
         <div>
           {/* AN PHIM Elegant Cinematic SVG Logo & Title */}
           <div className={`p-4 border-b border-neutral-900/40 ${isSidebarCollapsed ? "flex justify-center" : ""}`}>
@@ -702,9 +863,13 @@ export default function App() {
 
             {/* Mini Calendar Popover replaces the previous static button */}
             <MiniCalendarPopover 
-              events={db.schedule || []} 
+              events={aggregatedDb.schedule || []} 
               onNavigateToSchedule={() => setActivePage("schedule")}
               lang={lang}
+              globalCurrentDate={globalCurrentDate}
+              setGlobalCurrentDate={setGlobalCurrentDate}
+              globalSelectedDateStr={globalSelectedDateStr}
+              setGlobalSelectedDateStr={setGlobalSelectedDateStr}
             />
 
           </div>
@@ -715,15 +880,32 @@ export default function App() {
         <div id="main-scroll-container" className="flex-1 pl-3 pr-6 pb-2 pt-0">
           
           {/* Main conditional page router rendering */}
-          {activePage === "overview" && (
-            <OverviewPage 
-              db={db} 
-              onSelectProject={handleSelectProject}
-              onUpdateActionStatus={handleUpdateActionStatus}
-              onTriggerDecisionReview={() => handleSelectProject("")}
-              lang={lang}
-            />
-          )}
+          {activePage === "overview" && (() => {
+            const actualToday = new Date();
+            const todayStr = `${actualToday.getFullYear()}-${String(actualToday.getMonth() + 1).padStart(2, '0')}-${String(actualToday.getDate()).padStart(2, '0')}`;
+            const todaysEvents = aggregatedDb.schedule.filter(e => e.date === todayStr && e.status !== 'done');
+            const mappedActionsFromEvents: import("./types").CEOAction[] = todaysEvents.map((e, idx) => ({
+              id: `sync_evt_${e.id}`,
+              priorityOrder: e.priority === 'high' ? 1 : 2,
+              title: e.title,
+              project: e.projectId ? db.projects.find(p => p.id === e.projectId)?.name || "Dự án" : "Lịch làm việc",
+              priorityLevel: e.priority === 'high' ? "High" : (e.priority === 'medium' ? "Medium" : "Low"),
+              suggestedAgent: "System Sync",
+              status: e.status === 'done' ? "Done" : "Pending",
+              category: e.category
+            }));
+            const overviewDb = { ...db, actions: [...mappedActionsFromEvents, ...db.actions] };
+
+            return (
+              <OverviewPage 
+                db={overviewDb} 
+                onSelectProject={handleSelectProject}
+                onUpdateActionStatus={handleUpdateActionStatus}
+                onTriggerDecisionReview={() => handleSelectProject("")}
+                lang={lang}
+              />
+            );
+          })()}
 
           {activePage === "projects" && (
             <ProjectsPage 
@@ -769,8 +951,15 @@ export default function App() {
 
           {activePage === "schedule" && (
             <SchedulePage 
-              db={db}
+              db={aggregatedDb}
               lang={lang}
+              onAddEvent={handleAddEvent}
+              onDeleteEvent={handleDeleteEvent}
+              onEditEvent={handleEditEvent}
+              globalCurrentDate={globalCurrentDate}
+              setGlobalCurrentDate={setGlobalCurrentDate}
+              globalSelectedDateStr={globalSelectedDateStr}
+              setGlobalSelectedDateStr={setGlobalSelectedDateStr}
             />
           )}
 

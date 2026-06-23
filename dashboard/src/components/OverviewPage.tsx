@@ -187,7 +187,7 @@ export default function OverviewPage({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 shrink-0">
 
         {/* Card 1: Cash Available */}
-        <div className="bg-[#121417] border border-[#1e2329]/80 rounded-xl py-2 pr-2 pl-[16px] flex flex-col hover:border-emerald-500/20 transition group">
+        <div className="bg-[#121417] border border-[#1e2329]/80 rounded-xl py-3.5 pr-2 pl-[16px] flex flex-col justify-between hover:border-emerald-500/20 transition group">
           <div className="flex justify-between items-center">
             <p className="text-[10px] font-mono text-neutral-450 uppercase tracking-wider">{t.cashAvailable}</p>
             <div className="w-6 h-6 rounded-md bg-emerald-500/10 flex items-center justify-center border border-emerald-500/10 shrink-0">
@@ -206,7 +206,7 @@ export default function OverviewPage({
         </div>
 
         {/* Card 2: Receivable */}
-        <div className="bg-[#121417] border border-[#1e2329]/80 rounded-xl py-2 pr-2 pl-[16px] flex flex-col hover:border-emerald-500/20 transition group">
+        <div className="bg-[#121417] border border-[#1e2329]/80 rounded-xl py-3.5 pr-2 pl-[16px] flex flex-col justify-between hover:border-emerald-500/20 transition group">
           <div className="flex justify-between items-center">
             <p className="text-[10px] font-mono text-neutral-450 uppercase tracking-wider">{t.receivable}</p>
             <div className="w-6 h-6 rounded-md bg-emerald-500/10 flex items-center justify-center border border-emerald-500/10 shrink-0">
@@ -225,7 +225,7 @@ export default function OverviewPage({
         </div>
 
         {/* Card 3: Active Projects */}
-        <div className="bg-[#121417] border border-[#1e2329]/80 rounded-xl py-2 pr-2 pl-[16px] flex flex-col hover:border-emerald-500/20 transition group">
+        <div className="bg-[#121417] border border-[#1e2329]/80 rounded-xl py-3.5 pr-2 pl-[16px] flex flex-col justify-between hover:border-emerald-500/20 transition group">
           <div className="flex justify-between items-center">
             <p className="text-[10px] font-mono text-neutral-450 uppercase tracking-wider">{t.activeProjects}</p>
             <div className="w-6 h-6 rounded-md bg-emerald-500/10 flex items-center justify-center border border-emerald-500/10 shrink-0">
@@ -243,7 +243,7 @@ export default function OverviewPage({
         </div>
 
         {/* Card 4: Missing Documents */}
-        <div className="bg-[#121417] border border-orange-500/10 rounded-xl py-2 pr-2 pl-[16px] flex flex-col hover:border-orange-500/30 transition group">
+        <div className="bg-[#121417] border border-orange-500/10 rounded-xl py-3.5 pr-2 pl-[16px] flex flex-col justify-between hover:border-orange-500/30 transition group">
           <div className="flex justify-between items-center">
             <p className="text-[10px] font-mono text-orange-400 uppercase tracking-wider">{lang === "en" ? "Missing Documents" : "Thiếu giấy tờ"}</p>
             <div className="w-6 h-6 rounded-md bg-orange-500/10 flex items-center justify-center border border-orange-500/10 shrink-0">

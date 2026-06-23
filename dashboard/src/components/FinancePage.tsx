@@ -34,14 +34,12 @@ import { translations } from "../translations";
 
 interface FinancePageProps {
   db: GoogleSheetDB;
-  onClearAlert: (alertId: string) => void;
   onSelectProject: (projectId: string) => void;
   lang: "en" | "vi";
 }
 
 export default function FinancePage({
   db,
-  onClearAlert,
   onSelectProject,
   lang,
 }: FinancePageProps) {

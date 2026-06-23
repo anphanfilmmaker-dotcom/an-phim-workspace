@@ -139,6 +139,7 @@ export interface AgentTask {
   dueTime: string; // e.g. "Today 3:00 PM", "Tomorrow 10:00 AM"
 }
 
+
 // Structuring the Document Set tracked per project (from Excel "Giấy tờ" sheet)
 export interface ProjectDocumentSet {
   projectId: string;
@@ -149,6 +150,7 @@ export interface ProjectDocumentSet {
   vatR2: boolean;
   vatR3: boolean;
   liquidation: boolean;
+  overallStatus?: string;
 }
 
 // Structuring a schedule event
@@ -180,14 +182,10 @@ export interface GoogleSheetDB {
     actionsCompletedCount: number;
   };
   projects: Project[];
-  cashFlow: CashFlowPoint[];
   expenses: ExpenseCategoryItem[];
   expenseTransactions: ExpenseTransaction[];
   incomes: IncomeTransaction[];
-  alerts: FinanceAlert[];
-  documents: DocumentItem[];
   projectDocuments: ProjectDocumentSet[];
-  templateDocuments: DocumentItem[];
   actions: CEOAction[];
   agents: AIAgent[];
   tasks: AgentTask[];

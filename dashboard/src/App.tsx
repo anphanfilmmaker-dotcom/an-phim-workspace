@@ -217,17 +217,6 @@ export default function App() {
     updateDbState({ ...db, actions: nextActions });
   };
 
-  // Handler: Clear finance alerts from ledger
-  const handleClearFinanceAlert = (alertId: string) => {
-    const nextAlerts = db.alerts.map((al) => {
-      if (al.id === alertId) {
-        return { ...al, status: "Reviewed" as const };
-      }
-      return al;
-    });
-    updateDbState({ ...db, alerts: nextAlerts });
-  };
-
   // Handler: Update private notes on film projects
   const handleUpdateProjectNotes = (projectId: string, notes: string) => {
     const nextProjects = db.projects.map((proj) => {
@@ -278,11 +267,16 @@ export default function App() {
   };
 
   // Handler: Sync project document checklist state
-  const handleUpdateProjectDocument = (projectId: string, field: string, value: boolean) => {
+  const handleUpdateProjectDocument = (projectId: string, field: string, value: any) => {
     if (!db.projectDocuments) return;
     const nextDocs = db.projectDocuments.map((pd) => {
       if (pd.projectId === projectId) {
-        return { ...pd, [field]: value };
+        const nextPd = { ...pd, [field]: value };
+        const count = [nextPd.quote, nextPd.contract, nextPd.vatR1, nextPd.vatR2, nextPd.vatR3, nextPd.liquidation].filter(Boolean).length;
+        if (count === 6 && field !== 'overallStatus' && !nextPd.overallStatus) {
+          nextPd.overallStatus = "đã đủ";
+        }
+        return nextPd;
       }
       return pd;
     });
@@ -485,12 +479,23 @@ export default function App() {
       }));
   };
 
-  // Helper: Get signed or approved documents sorted or padded
-  const getSignedDocumentsForSidebar = () => {
-    const signed = db.documents.filter(d => d.status === "Signed");
-    const approved = db.documents.filter(d => d.status === "Approved");
-    const others = db.documents.filter(d => d.status !== "Signed" && d.status !== "Approved");
-    return [...signed, ...approved, ...others].slice(0, 3);
+  // Helper: Get projects with incomplete documents
+  const getIncompleteProjectsForSidebar = () => {
+    if (!db.projectDocuments) return [];
+    
+    // Filter and sort projects by number of missing documents (ascending, so those with most missing show first)
+    const incomplete = [...db.projectDocuments]
+      .filter(pd => {
+        const count = [pd.quote, pd.contract, pd.vatR1, pd.vatR2, pd.vatR3, pd.liquidation].filter(Boolean).length;
+        return count < 6;
+      })
+      .sort((a, b) => {
+        const countA = [a.quote, a.contract, a.vatR1, a.vatR2, a.vatR3, a.liquidation].filter(Boolean).length;
+        const countB = [b.quote, b.contract, b.vatR1, b.vatR2, b.vatR3, b.liquidation].filter(Boolean).length;
+        return countA - countB;
+      });
+      
+    return incomplete.slice(0, 3);
   };
 
   return (
@@ -718,41 +723,36 @@ export default function App() {
             </>
           )}
 
-          {/* Render for DOCUMENTS page: Signed Documents */}
+          {/* Render for DOCUMENTS page: Incomplete Projects */}
           {activePage === "documents" && (
             <>
-              <div className="flex items-center space-x-1.5 mb-2.5 text-[10px] font-mono font-bold tracking-wider text-[#10B981] uppercase">
-                <FileText className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{t.signedDocuments}</span>
+              <div className="flex items-center space-x-1.5 mb-2.5 text-[10px] font-mono font-bold tracking-wider text-orange-400 uppercase">
+                <FileText className="w-3.5 h-3.5 text-orange-400" />
+                <span>{lang === "en" ? "MISSING DOCUMENTS" : "DỰ ÁN THIẾU GIẤY TỜ"}</span>
               </div>
               <div className="space-y-2">
-                {getSignedDocumentsForSidebar().map((doc) => {
-                  const isSigned = doc.status === "Signed";
-                  const isApproved = doc.status === "Approved";
+                {getIncompleteProjectsForSidebar().map((pd) => {
+                  const completedDocs = [pd.quote, pd.contract, pd.vatR1, pd.vatR2, pd.vatR3, pd.liquidation].filter(Boolean).length;
+                  const progress = Math.round((completedDocs / 6) * 100);
+                  const projectObj = db.projects.find(p => p.id === pd.projectId || p.name === pd.projectName);
+                  
                   return (
                     <div 
-                      key={doc.id}
-                      className="flex items-center justify-between text-[10px] hover:bg-neutral-900/40 p-1.5 rounded transition"
+                      key={pd.projectId}
+                      className="flex items-center justify-between text-[10px] hover:bg-neutral-900/40 p-1.5 rounded transition cursor-pointer"
+                      onClick={() => handleSelectProject(pd.projectId)}
                     >
                       <div className="min-w-0 flex-1 pr-1.5">
-                        <p className="text-[10px] text-neutral-200 font-sans font-bold truncate">{doc.name}</p>
+                        <p className="text-[10px] text-neutral-200 font-sans font-bold truncate">{pd.projectName}</p>
                         <span className="text-[8px] font-mono text-neutral-500 block leading-none mt-0.5 uppercase tracking-wide truncate">
-                          {doc.owner} • {doc.project}
+                          {projectObj?.client || "CLIENT"} • THIẾU {6 - completedDocs} GIẤY TỜ
                         </span>
                       </div>
                       <div className="text-right shrink-0">
-                        <span className={`text-[7px] font-mono leading-none border px-1.5 py-0.5 rounded font-bold uppercase shrink-0 block ${
-                          isSigned 
-                            ? "bg-emerald-950/20 border-emerald-900/40 text-emerald-400" 
-                            : isApproved 
-                              ? "bg-blue-950/20 border-blue-900/40 text-blue-400" 
-                              : doc.status === "Pending" 
-                                ? "bg-orange-950/20 border-orange-900/40 text-orange-400" 
-                                : "bg-red-950/20 border-red-900/40 text-red-500"
-                        }`}>
-                          {doc.status === "Signed" ? t.signed : doc.status === "Approved" ? t.approved : doc.status === "Pending" ? t.pending : t.missing}
+                        <span className="text-[7px] font-mono leading-none border px-1.5 py-0.5 rounded font-bold uppercase shrink-0 block bg-orange-950/20 border-orange-900/40 text-orange-400">
+                          {progress}%
                         </span>
-                        <span className="block text-[8px] text-neutral-500 font-mono mt-1">{doc.fileSize || "0 KB"}</span>
+                        <span className="block text-[8px] text-neutral-500 font-mono mt-1">{completedDocs}/6 XONG</span>
                       </div>
                     </div>
                   );
@@ -861,6 +861,32 @@ export default function App() {
               <span>{lang === "en" ? "🇺🇸" : "🇻🇳"}</span>
             </button>
 
+            {/* Sync to Excel Button */}
+            <button
+              onClick={() => {
+                if (window.confirm(lang === "en" ? "Do you want to sync the current data to the Excel file?" : "Bạn có muốn đồng bộ dữ liệu hiện tại vào file Excel không?")) {
+                  fetch('http://localhost:5000/api/sync-to-excel', { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(db)
+                  })
+                    .then(res => res.json())
+                    .then(data => {
+                       if(data.success) {
+                          alert(data.message || "Đồng bộ thành công");
+                       } else {
+                          alert("Lỗi: " + data.error);
+                       }
+                    })
+                    .catch(err => alert("Đồng bộ thất bại: " + err.message));
+                }
+              }}
+              className="flex items-center space-x-1.5 bg-neutral-900 hover:bg-emerald-900/40 border border-neutral-800 hover:border-emerald-500/40 px-3 py-1.5 rounded-lg text-[10px] font-mono tracking-wider transition-all cursor-pointer active:scale-95 shadow-sm text-emerald-400 font-bold"
+              title={lang === "en" ? "Sync Data to Excel" : "Đồng bộ dữ liệu sang Excel"}
+            >
+              <span>{lang === "en" ? "SYNC EXCEL" : "ĐỒNG BỘ"}</span>
+            </button>
+
             {/* Mini Calendar Popover replaces the previous static button */}
             <MiniCalendarPopover 
               events={aggregatedDb.schedule || []} 
@@ -922,7 +948,6 @@ export default function App() {
           {activePage === "finance" && (
             <FinancePage 
               db={db}
-              onClearAlert={handleClearFinanceAlert}
               onSelectProject={handleSelectProject}
               lang={lang}
             />

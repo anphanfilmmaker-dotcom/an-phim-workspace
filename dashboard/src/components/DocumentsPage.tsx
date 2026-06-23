@@ -20,7 +20,7 @@ interface DocumentsPageProps {
   onAddDocument: (doc: DocumentItem) => void;
   onUpdateDocStatus: (docId: string, status: DocStatus) => void;
   onDeleteDocument: (docId: string) => void;
-  onUpdateProjectDocument?: (projectId: string, field: string, value: boolean) => void;
+  onUpdateProjectDocument?: (projectId: string, field: string, value: any) => void;
   onUpdateProjectNotes?: (projectId: string, notes: string) => void;
   lang: "en" | "vi";
 }
@@ -252,9 +252,29 @@ export default function DocumentsPage({
                         { label: "Biên bản thanh lý", field: "liquidation", completed: docSet.liquidation },
                       ];
 
+                      const isComplete = docs.every(d => d.completed);
+                      const displayStatus = docSet.overallStatus || (isComplete ? "đã đủ" : "Chưa có");
+
                       return (
                         <div>
-                          <span className="block text-[10px] font-mono text-neutral-500 uppercase mb-3">DOCUMENT CHECKLIST</span>
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="block text-[10px] font-mono text-neutral-500 uppercase">DOCUMENT CHECKLIST</span>
+                            <select 
+                              className="bg-[#171b21] border border-neutral-700 hover:border-neutral-500 text-[10px] text-neutral-300 rounded outline-none px-1.5 py-0.5 cursor-pointer appearance-none transition max-w-[100px]"
+                              value={displayStatus}
+                              onChange={(e) => {
+                                 const val = e.target.value;
+                                 onUpdateProjectDocument && onUpdateProjectDocument(docSet.projectId, 'overallStatus', val);
+                              }}
+                            >
+                              <option value="Chưa có">Chưa có</option>
+                              <option value="Đã kí">Đã kí</option>
+                              <option value="Chờ kí">Chờ kí</option>
+                              <option value="đã gửi">Đã gửi</option>
+                              <option value="đã đủ">Đã đủ</option>
+                              <option value="chờ đợt 2">Chờ đợt 2</option>
+                            </select>
+                          </div>
                           <div className="space-y-2 text-[10px] font-mono">
                             {docs.map((doc, idx) => (
                               <div key={idx} className="flex items-center justify-between group">
@@ -368,29 +388,6 @@ export default function DocumentsPage({
               );
             })()}
           </div>
-        </div>
-      </div>
-      
-      {/* Templates Folder (Moved to bottom) */}
-      <div className="bg-[#121417] p-5 rounded-xl border border-[#1e2329]/80 mt-6">
-        <h3 className="text-xs font-mono text-[#10B981] uppercase tracking-widest font-bold mb-4">
-          {lang === "en" ? "Templates Library" : "Thư Viện Tài Liệu Mẫu"}
-        </h3>
-        <div className="flex flex-wrap gap-4">
-          {(db.templateDocuments || []).map(tpl => (
-            <div key={tpl.id} className="flex items-center space-x-3 bg-[#171b21] p-3 rounded-lg border border-[#2b333c] hover:border-emerald-500/50 transition cursor-pointer">
-              <div className="p-2 bg-emerald-950/30 rounded text-emerald-400">
-                 <FileText className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-xs font-sans text-white font-medium">{tpl.name}</p>
-                <p className="text-[10px] font-mono text-neutral-450">{tpl.fileSize} • {lang === "en" ? "Click to download" : "Nhấn để tải xuống"}</p>
-              </div>
-            </div>
-          ))}
-          {(!db.templateDocuments || db.templateDocuments.length === 0) && (
-            <div className="text-[10px] font-mono text-neutral-500">No templates found.</div>
-          )}
         </div>
       </div>
 

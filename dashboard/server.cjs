@@ -524,10 +524,11 @@ app.post('/api/sync', async (req, res) => {
 app.post('/api/sync-to-excel', async (req, res) => {
   try {
     console.log("Triggering DB → Excel sync...");
+    const db = req.body;
     const { syncDbToExcel } = require('./excel-writer.cjs');
-    const result = await syncDbToExcel(dbQuery);
-    console.log(`DB → Excel sync complete. Updated ${result.updatedCount} projects.`);
-    res.json({ success: true, message: `Đã ghi ${result.updatedCount} dự án vào Excel thành công.`, updatedCount: result.updatedCount });
+    const result = await syncDbToExcel(db);
+    console.log(`DB → Excel sync complete. Updated ${result.updatedCount} sheets.`);
+    res.json({ success: true, message: `Đã ghi toàn bộ dữ liệu vào Excel thành công.`, updatedCount: result.updatedCount });
   } catch (err) {
     console.error("Sync-to-excel error:", err);
     res.status(500).json({ error: err.message });

@@ -1,25 +1,33 @@
 #!/bin/bash
 
 # ANPHIM Dashboard Deployment Script
-# Run this script on the VPS to update the code and restart the backend.
-
 echo "========================================="
-echo "🚀 Starting Deployment Process..."
+echo "🚀 Bắt đầu quá trình cập nhật ANPHIM Dashboard..."
 echo "========================================="
 
-# 1. Pull latest code from Github (including pre-built dist folder)
-echo "📥 1. Pulling latest code from Github..."
-git pull origin main
+# 1. Kiểm tra và cài đặt Git nếu chưa có
+if ! command -v git &> /dev/null; then
+    echo "📦 Đang cài đặt Git..."
+    sudo apt-get update && sudo apt-get install git -y
+fi
 
-# 2. Install/Update dependencies
-echo "📦 2. Installing dependencies..."
-npm install --production
+# 2. Cấu hình lại thư mục Git bằng HTTPS để không bị kẹt xác thực
+echo "📥 Tải code mới nhất từ Github..."
+cd ~/an-phim-workspace || exit
+git remote set-url origin https://github.com/anphanfilmmaker-dotcom/an-phim-workspace.git
+git fetch origin main
+git reset --hard origin/main
 
-# 3. Restart PM2 Server
-echo "🔄 3. Restarting PM2 Server..."
-# Assuming PM2 was started with 'pm2 start server.cjs --name anphim-dashboard'
-pm2 restart server.cjs || pm2 start server.cjs --name anphim-dashboard
+# 3. Cài đặt thư viện và Build giao diện mới
+echo "🔨 Đang Build giao diện mới..."
+cd dashboard || exit
+npm install
+npm run build
+
+# 4. Khởi động lại Server
+echo "🔄 Đang khởi động lại hệ thống..."
+pm2 restart all
 
 echo "========================================="
-echo "✅ Deployment Successful!"
+echo "✅ Cập nhật thành công! Sếp có thể F5 lại Web."
 echo "========================================="

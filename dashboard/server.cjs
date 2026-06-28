@@ -8,7 +8,8 @@ const cors = require('cors');
 const path = require('path');
 const dotenv = require('dotenv');
 const fs = require('fs');
-
+const { GoogleGenAI } = require('@google/genai');
+const jwt = require('jsonwebtoken');
 dotenv.config();
 
 const app = express();
@@ -16,12 +17,37 @@ const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
-// Ensure API responses use UTF-8 encoding (for Vietnamese text) — API routes only
+// Ensure API responses use UTF-8 encoding and JWT Auth
 app.use('/api', (req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  next();
+  
+  if (req.path === '/login') {
+    return next();
+  }
+  
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret', (err, user) => {
+    if (err) return res.status(403).json({ error: 'Forbidden' });
+    req.user = user;
+    next();
+  });
 });
 
+app.post('/api/login', (req, res) => {
+  const { password } = req.body;
+  if (password === process.env.ADMIN_PASSWORD) {
+    const token = jwt.sign({ user: 'admin' }, process.env.JWT_SECRET || 'fallback_secret', { expiresIn: '24h' });
+    res.json({ token });
+  } else {
+    res.status(401).json({ error: 'Invalid password' });
+  }
+});
 
 // Initialize Database connection dynamically
 let db;
@@ -313,14 +339,7 @@ async function initDb() {
   const count = isPostgres ? parseInt(projectCount[0].count) : projectCount[0].count;
 
   if (count === 0) {
-    console.log("Populating database with real data from Excel...");
-    try {
-      const { syncExcelToDatabase } = require('./excel-parser.cjs');
-      await syncExcelToDatabase(dbRun, dbQuery);
-      console.log("Database initialized and populated.");
-    } catch (e) {
-      console.error("Failed to seed database:", e);
-    }
+    console.log("Database is empty. Please add projects via the UI.");
   }
 
   // Populate schedule mock data if empty
@@ -506,31 +525,36 @@ app.put('/api/tasks/:id', async (req, res) => {
   }
 });
 
-// Sync FROM Excel on Google Drive → Database
-app.post('/api/sync', async (req, res) => {
+// AI Chat Endpoint
+app.post('/api/chat', async (req, res) => {
   try {
-    console.log("Triggering Excel → DB sync...");
-    const { syncExcelToDatabase } = require('./excel-parser.cjs');
-    await syncExcelToDatabase(dbRun, dbQuery);
-    console.log("Excel → DB sync complete.");
-    res.json({ success: true, message: "Sync from Excel completed successfully." });
-  } catch (err) {
-    console.error("Sync error:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
+    const { history, agentName, agentRole } = req.body;
+    
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(400).json({ error: "Chưa cấu hình GEMINI_API_KEY trong file .env trên server." });
+    }
 
-// Sync FROM Database → Excel on Google Drive
-app.post('/api/sync-to-excel', async (req, res) => {
-  try {
-    console.log("Triggering DB → Excel sync...");
-    const db = req.body;
-    const { syncDbToExcel } = require('./excel-writer.cjs');
-    const result = await syncDbToExcel(db);
-    console.log(`DB → Excel sync complete. Updated ${result.updatedCount} sheets.`);
-    res.json({ success: true, message: `Đã ghi toàn bộ dữ liệu vào Excel thành công.`, updatedCount: result.updatedCount });
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    
+    // System instruction to give the agent its persona
+    const systemInstruction = `Bạn là ${agentName} tại An Phim Workspace. Vai trò của bạn là: ${agentRole}. Hãy trả lời các câu hỏi ngắn gọn, chuyên nghiệp, xưng hô phù hợp và đúng với chuyên môn của mình.`;
+
+    const formattedContents = history.map(msg => ({
+      role: msg.sender === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.text }]
+    }));
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: formattedContents,
+      config: {
+        systemInstruction: systemInstruction,
+      }
+    });
+
+    res.json({ reply: response.text });
   } catch (err) {
-    console.error("Sync-to-excel error:", err);
+    console.error("Chat API error:", err);
     res.status(500).json({ error: err.message });
   }
 });

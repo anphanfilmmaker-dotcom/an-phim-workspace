@@ -21,6 +21,7 @@ import {
   MessageSquare
 } from "lucide-react";
 import { translations } from "../translations";
+import AgentChatModal from "./AgentChatModal";
 
 interface AgentsPageProps {
   db: GoogleSheetDB;
@@ -38,6 +39,7 @@ export default function AgentsPage({
   const t = translations[lang];
   const [activeFilterAgent, setActiveFilterAgent] = useState<string | null>(null);
   const [activeTaskPrompt, setActiveTaskPrompt] = useState<string | null>(null);
+  const [chatAgent, setChatAgent] = useState<any | null>(null);
 
   // Filter tasks based on selected agent if any
   const displayedTasks = db.tasks.filter((task) => {
@@ -248,9 +250,7 @@ export default function AgentsPage({
                   </div>
 
                   <button
-                    onClick={() => {
-                      alert(lang === "en" ? `Chat session with ${agent.name} is starting...` : `Đang kết nối chat với ${agent.name}...`);
-                    }}
+                    onClick={() => setChatAgent(agent)}
                     className="w-full py-1.5 rounded text-[10px] font-mono font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer bg-neutral-900 text-neutral-350 hover:bg-emerald-600 hover:text-white border border-neutral-800 hover:border-emerald-500"
                   >
                     <MessageSquare className="w-3.5 h-3.5" />
@@ -265,6 +265,13 @@ export default function AgentsPage({
       </div>
 
 
+      {chatAgent && (
+        <AgentChatModal 
+          agent={chatAgent} 
+          onClose={() => setChatAgent(null)} 
+          lang={lang} 
+        />
+      )}
 
     </div>
   );

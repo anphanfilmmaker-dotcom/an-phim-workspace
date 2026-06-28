@@ -15,6 +15,7 @@ import DocumentsPage from "./components/DocumentsPage";
 import SheetSimulator from "./components/SheetSimulator";
 import SchedulePage from "./components/SchedulePage";
 import MiniCalendarPopover from "./components/MiniCalendarPopover"; 
+import Login from "./components/Login";
 import {
   Home, 
   Film, 
@@ -65,6 +66,20 @@ export default function App() {
   });
 
   const t = translations[lang];
+
+  const [token, setToken] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("anphim_auth_token");
+    }
+    return null;
+  });
+
+  if (!token) {
+    return <Login onLoginSuccess={(t) => {
+      localStorage.setItem("anphim_auth_token", t);
+      setToken(t);
+    }} />;
+  }
 
   // Auto-scroll to top when navigating pages or selecting a new project
   useEffect(() => {
@@ -124,35 +139,37 @@ export default function App() {
   };
 
   // Fetch real data from the Backend API on load
-  // useEffect(() => {
-  //   fetch('/api/db')
-  //     .then(res => {
-  //       if (!res.ok) throw new Error("API response not ok");
-  //       return res.json();
-  //     })
-  //     .then(data => {
-  //       if (data && data.projects) {
-  //         const safeDb: GoogleSheetDB = {
-  //           ...db,
-  //           ...data,
-  //           projects: (data.projects || []).map(normalizeProject),
-  //           cashFlow: data.cashFlow || db.cashFlow,
-  //           expenses: data.expenses || db.expenses,
-  //           alerts: data.alerts || db.alerts,
-  //           documents: data.documents || db.documents,
-  //           actions: data.actions || db.actions,
-  //           agents: data.agents || db.agents,
-  //           tasks: data.tasks || db.tasks,
-  //           incomes: data.incomes || db.incomes,
-  //           schedule: data.schedule || db.schedule
-  //         };
-  //         updateDbState(safeDb);
-  //       }
-  //     })
-  //     .catch(err => {
-  //       console.error("Failed to load live database from Backend API:", err);
-  //     });
-  // }, []);
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : undefined;
+    fetch('/api/db', { headers })
+      .then(res => {
+        if (!res.ok) throw new Error("API response not ok");
+        return res.json();
+      })
+      .then(data => {
+        if (data && data.projects) {
+          const safeDb: GoogleSheetDB = {
+            ...db,
+            ...data,
+            projects: (data.projects || []).map(normalizeProject),
+            cashFlow: data.cashFlow || db.cashFlow,
+            expenses: data.expenses || db.expenses,
+            alerts: data.alerts || db.alerts,
+            documents: data.documents || db.documents,
+            actions: data.actions || db.actions,
+            agents: data.agents || db.agents,
+            tasks: data.tasks || db.tasks,
+            incomes: data.incomes || db.incomes,
+            schedule: data.schedule || db.schedule
+          };
+          updateDbState(safeDb);
+        }
+      })
+      .catch(err => {
+        console.error("Failed to load live database from Backend API:", err);
+      });
+  }, []);
 
   // Handler: Select a project and slide focus automatically
   const handleSelectProject = (projectId: string) => {
@@ -861,31 +878,7 @@ export default function App() {
               <span>{lang === "en" ? "🇺🇸" : "🇻🇳"}</span>
             </button>
 
-            {/* Sync to Excel Button */}
-            <button
-              onClick={() => {
-                if (window.confirm(lang === "en" ? "Do you want to sync the current data to the Excel file?" : "Bạn có muốn đồng bộ dữ liệu hiện tại vào file Excel không?")) {
-                  fetch('http://localhost:5000/api/sync-to-excel', { 
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(db)
-                  })
-                    .then(res => res.json())
-                    .then(data => {
-                       if(data.success) {
-                          alert(data.message || "Đồng bộ thành công");
-                       } else {
-                          alert("Lỗi: " + data.error);
-                       }
-                    })
-                    .catch(err => alert("Đồng bộ thất bại: " + err.message));
-                }
-              }}
-              className="flex items-center space-x-1.5 bg-neutral-900 hover:bg-emerald-900/40 border border-neutral-800 hover:border-emerald-500/40 px-3 py-1.5 rounded-lg text-[10px] font-mono tracking-wider transition-all cursor-pointer active:scale-95 shadow-sm text-emerald-400 font-bold"
-              title={lang === "en" ? "Sync Data to Excel" : "Đồng bộ dữ liệu sang Excel"}
-            >
-              <span>{lang === "en" ? "SYNC EXCEL" : "ĐỒNG BỘ"}</span>
-            </button>
+
 
             {/* Mini Calendar Popover replaces the previous static button */}
             <MiniCalendarPopover 

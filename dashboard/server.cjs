@@ -385,8 +385,10 @@ app.get('/api/db', async (req, res) => {
     const actions = await dbQuery("SELECT * FROM actions");
     const agents = await dbQuery("SELECT * FROM agents");
     const tasks = await dbQuery("SELECT * FROM tasks");
-    const recent_expenses = await dbQuery("SELECT * FROM recent_expenses");
-    const expenseTransactions = await dbQuery("SELECT * FROM expenseTransactions");
+    // Map real expensetransactions to recent_expenses for the UI
+    const db_transactions = await dbQuery("SELECT id, vendor as title, amount, date, category, \"paymentmethod\" FROM expensetransactions ORDER BY date DESC LIMIT 20");
+    const recent_expenses = db_transactions;
+    const expenseTransactions = await dbQuery("SELECT * FROM expensetransactions");
     const statsRows = await dbQuery("SELECT * FROM stats");
     const incomes = await dbQuery("SELECT * FROM incomes");
     const schedule = await dbQuery("SELECT * FROM schedule");

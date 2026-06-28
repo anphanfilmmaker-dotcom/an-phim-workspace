@@ -61,9 +61,26 @@ export default function OverviewPage({
     })
     .slice(0, 3);
 
-  const pendingActions = db.actions
-    .filter((a) => a.status !== "Done")
-    .sort((a, b) => a.priorityOrder - b.priorityOrder);
+  const pendingActions = React.useMemo(() => {
+    const todayStr = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0];
+    
+    const todayEvents = (db.schedule || [])
+      .filter(e => e.date === todayStr && e.status !== "done")
+      .map(e => ({
+        id: e.id,
+        priorityOrder: 0,
+        title: (e.startTime ? `${e.startTime} - ` : "") + e.title,
+        project: e.projectId || (lang === "en" ? "Meeting" : "Lịch hẹn"),
+        priorityLevel: e.priority === "high" ? "High" : "Medium",
+        suggestedAgent: e.agent || "Trâm Anh",
+        status: "Pending",
+        category: "meeting"
+      } as CEOAction));
+      
+    const actions = (db.actions || []).filter(a => a.status !== "Done");
+    
+    return [...todayEvents, ...actions].sort((a, b) => a.priorityOrder - b.priorityOrder);
+  }, [db.schedule, db.actions, lang]);
 
   // Missing documents calculation
   const missingDocumentsCount = db.projectDocuments?.filter(p => [p.quote, p.contract, p.vatR1, p.vatR2, p.vatR3, p.liquidation].filter(Boolean).length < 6).length || 0;

@@ -3,6 +3,7 @@ import sys
 import argparse
 import json
 import datetime
+import uuid
 from db_connection import execute_query
 
 # Set terminal output to UTF-8 to handle Vietnamese characters properly
@@ -12,20 +13,14 @@ if sys.platform.startswith('win'):
     sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
 
 def add_project(args):
-    """
-    Creates a new project in the Database.
-    Replaces the old openpyxl logic.
-    """
     due_date = None
     if args.due:
         try:
-            # Validate format YYYY-MM-DD
             datetime.datetime.strptime(args.due, '%Y-%m-%d')
             due_date = args.due
         except ValueError:
             due_date = args.due
 
-    # Generate an ID based on name and timestamp
     project_id = f"PROJ-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
 
     query = """
@@ -48,10 +43,46 @@ def add_project(args):
     else:
         print(json.dumps({"status": "error", "message": "Loi ket noi hoac ghi Database."}, ensure_ascii=False))
 
+def add_event(args):
+    """Adds a calendar event to the schedule table (has date & time)."""
+    event_id = f"evt_{uuid.uuid4().hex[:8]}"
+    query = """
+        INSERT INTO schedule (id, title, date, startTime, projectId, category, priority, status, agent)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    # Auto-detect category
+    category = "meeting" if "họp" in args.title.lower() or "meeting" in args.title.lower() else "work"
+    
+    params = (event_id, args.title, args.date, args.start_time, args.project, category, "high", "todo", "Trâm Anh")
+    success = execute_query(query, params, fetch=False)
+    
+    if success:
+        print(json.dumps({
+            "status": "success", 
+            "message": f"Đã lưu lịch hẹn '{args.title}' vào ngày {args.date} lúc {args.start_time}."
+        }, ensure_ascii=False))
+    else:
+        print(json.dumps({"status": "error", "message": "Lỗi lưu Lịch hẹn."}, ensure_ascii=False))
+
+def add_task(args):
+    """Adds a task to the actions table (To-do, no specific time)."""
+    task_id = f"act_{uuid.uuid4().hex[:8]}"
+    query = """
+        INSERT INTO actions (id, priorityOrder, title, project, priorityLevel, suggestedAgent, status, category)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    params = (task_id, 1, args.title, args.project, "Medium", "Trâm Anh", "Pending", "work")
+    success = execute_query(query, params, fetch=False)
+    
+    if success:
+        print(json.dumps({
+            "status": "success", 
+            "message": f"Đã thêm công việc '{args.title}' vào Today Task."
+        }, ensure_ascii=False))
+    else:
+        print(json.dumps({"status": "error", "message": "Lỗi lưu Công việc."}, ensure_ascii=False))
+
 def list_projects(args):
-    """
-    Lists projects from the Database.
-    """
     query = "SELECT * FROM projects WHERE 1=1"
     params = []
     
@@ -70,9 +101,6 @@ def list_projects(args):
         print(json.dumps({"status": "error", "message": "Loi doc du lieu tu Database."}, ensure_ascii=False))
 
 def update_project(args):
-    """
-    Updates an existing project in the Database.
-    """
     updates = []
     params = []
     
@@ -113,9 +141,6 @@ def update_project(args):
         print(json.dumps({"status": "error", "message": "Loi cap nhat Database."}, ensure_ascii=False))
 
 def generate_report(args):
-    """
-    New function: Trâm Anh synthesizes data across projects for reporting.
-    """
     query = "SELECT status, COUNT(*) as count FROM projects GROUP BY status"
     stats = execute_query(query, fetch=True)
     print(json.dumps({"status": "success", "data": stats, "message": "Bao cao tong hop hoan tat"}, ensure_ascii=False))
@@ -126,30 +151,42 @@ def main():
 
     # Add project
     parser_add_proj = subparsers.add_parser("add_project")
-    parser_add_proj.add_argument("--client", required=True, help="Ten khach hang")
-    parser_add_proj.add_argument("--name", required=True, help="Ten du an")
-    parser_add_proj.add_argument("--type", default="AI Film", help="The loai (AI Film, AI Render, Marketing, ...)")
-    parser_add_proj.add_argument("--stage", default="Brief / Scope", help="Giai doan hien tai")
-    parser_add_proj.add_argument("--priority", default="Medium", help="Do uu tien")
-    parser_add_proj.add_argument("--status", default="Chưa bắt đầu", help="Trang thai")
-    parser_add_proj.add_argument("--next_action", default="", help="Hanh dong tiep theo")
-    parser_add_proj.add_argument("--due", default="", help="Han chot (YYYY-MM-DD)")
-    parser_add_proj.add_argument("--notes", default="", help="Ghi chu them")
+    parser_add_proj.add_argument("--client", required=True)
+    parser_add_proj.add_argument("--name", required=True)
+    parser_add_proj.add_argument("--type", default="AI Film")
+    parser_add_proj.add_argument("--stage", default="Brief / Scope")
+    parser_add_proj.add_argument("--priority", default="Medium")
+    parser_add_proj.add_argument("--status", default="Chưa bắt đầu")
+    parser_add_proj.add_argument("--next_action", default="")
+    parser_add_proj.add_argument("--due", default="")
+    parser_add_proj.add_argument("--notes", default="")
+
+    # Add Event (Schedule)
+    parser_event = subparsers.add_parser("add_event")
+    parser_event.add_argument("--title", required=True)
+    parser_event.add_argument("--date", required=True, help="YYYY-MM-DD")
+    parser_event.add_argument("--start_time", required=True, help="HH:MM")
+    parser_event.add_argument("--project", default="")
+
+    # Add Task (Action)
+    parser_task = subparsers.add_parser("add_task")
+    parser_task.add_argument("--title", required=True)
+    parser_task.add_argument("--project", default="")
 
     # List projects
     parser_list_proj = subparsers.add_parser("list_projects")
-    parser_list_proj.add_argument("--status", help="Loc theo trang thai")
-    parser_list_proj.add_argument("--client", help="Loc theo khach hang")
+    parser_list_proj.add_argument("--status")
+    parser_list_proj.add_argument("--client")
 
     # Update project
     parser_update_proj = subparsers.add_parser("update_project")
-    parser_update_proj.add_argument("--id", required=True, help="ID du an")
-    parser_update_proj.add_argument("--stage", help="Cap nhat giai doan")
-    parser_update_proj.add_argument("--priority", help="Cap nhat do uu tien")
-    parser_update_proj.add_argument("--status", help="Cap nhat trang thai")
-    parser_update_proj.add_argument("--next_action", help="Cap nhat hanh dong")
-    parser_update_proj.add_argument("--due", help="Cap nhat han chot")
-    parser_update_proj.add_argument("--notes", help="Cap nhat ghi chu")
+    parser_update_proj.add_argument("--id", required=True)
+    parser_update_proj.add_argument("--stage")
+    parser_update_proj.add_argument("--priority")
+    parser_update_proj.add_argument("--status")
+    parser_update_proj.add_argument("--next_action")
+    parser_update_proj.add_argument("--due")
+    parser_update_proj.add_argument("--notes")
     
     # Generate Report
     parser_report = subparsers.add_parser("report", help="Tao bao cao tong quan")
@@ -168,6 +205,10 @@ def main():
         update_project(args)
     elif args.action == "report":
         generate_report(args)
+    elif args.action == "add_event":
+        add_event(args)
+    elif args.action == "add_task":
+        add_task(args)
 
 if __name__ == "__main__":
     main()

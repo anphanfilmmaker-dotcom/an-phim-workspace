@@ -114,7 +114,19 @@ def sync_expenses():
     print("Syncing Expenses...")
     df_exp = pd.read_excel(EXCEL_PATH, sheet_name='Expense')
     for _, row in df_exp.iterrows():
-        date = str(clean_value(row.get('Date')))
+        # Handle Date formatting properly (including Excel serial numbers)
+        raw_date = row.get('Date')
+        if pd.isna(raw_date):
+            continue
+        try:
+            if isinstance(raw_date, (int, float)):
+                dt = pd.Timedelta(days=raw_date, unit='d') + pd.Timestamp('1899-12-30')
+            else:
+                dt = pd.to_datetime(raw_date)
+            date = dt.strftime('%Y-%m-%d')
+        except:
+            date = str(raw_date)
+            
         vendor = str(clean_value(row.get('Vendor / Payee')))
         amount = clean_int(row.get('Amount', 0))
         project = str(clean_value(row.get('Project Name')))
@@ -125,6 +137,8 @@ def sync_expenses():
         if not date or amount == 0:
             continue
             
+        print(f"Syncing expense: {date} - {vendor} - {amount}")
+        
         # Create a unique ID to prevent duplicates if run multiple times
         # UUID based on combination of date, vendor, amount
         uid_str = f"{date}_{vendor}_{amount}_{project}".encode('utf-8')
@@ -135,7 +149,13 @@ def sync_expenses():
             INSERT INTO expenseTransactions
             (id, date, vendor, amount, project, category, paymentMethod, description)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (id) DO NOTHING
+            ON CONFLICT (id) DO UPDATE SET
+            vendor = EXCLUDED.vendor,
+            amount = EXCLUDED.amount,
+            project = EXCLUDED.project,
+            category = EXCLUDED.category,
+            paymentMethod = EXCLUDED.paymentMethod,
+            description = EXCLUDED.description
         """, (eid, date, vendor, amount, project, category, method, desc))
 
 def sync_incomes():

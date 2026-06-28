@@ -137,8 +137,6 @@ def sync_expenses():
         if not date or amount == 0:
             continue
             
-        print(f"Syncing expense: {date} - {vendor} - {amount}")
-        
         # Create a unique ID to prevent duplicates if run multiple times
         # UUID based on combination of date, vendor, amount
         uid_str = f"{date}_{vendor}_{amount}_{project}".encode('utf-8')

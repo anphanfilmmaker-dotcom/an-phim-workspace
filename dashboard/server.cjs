@@ -82,7 +82,10 @@ if (isPostgres) {
 const dbQuery = (sql, params = []) => {
   return new Promise((resolve, reject) => {
     if (isPostgres) {
-      db.query(sql, params, (err, res) => {
+      let pgSql = sql;
+      let i = 1;
+      pgSql = pgSql.replace(/\?/g, () => `$${i++}`);
+      db.query(pgSql, params, (err, res) => {
         if (err) reject(err);
         else resolve(res.rows);
       });
@@ -98,7 +101,10 @@ const dbQuery = (sql, params = []) => {
 const dbRun = (sql, params = []) => {
   return new Promise((resolve, reject) => {
     if (isPostgres) {
-      db.query(sql, params, (err, res) => {
+      let pgSql = sql;
+      let i = 1;
+      pgSql = pgSql.replace(/\?/g, () => `$${i++}`);
+      db.query(pgSql, params, (err, res) => {
         if (err) reject(err);
         else resolve(res);
       });
@@ -343,6 +349,7 @@ async function initDb() {
   }
 
   // Populate schedule mock data if empty
+  /*
   const scheduleCount = await dbQuery("SELECT COUNT(*) as count FROM schedule");
   const sCount = isPostgres ? parseInt(scheduleCount[0].count) : scheduleCount[0].count;
   if (sCount === 0) {
@@ -361,6 +368,7 @@ async function initDb() {
       );
     }
   }
+  */
 }
 
 // REST API Endpoints
@@ -373,10 +381,12 @@ app.get('/api/db', async (req, res) => {
     const expenses = await dbQuery("SELECT * FROM expenses");
     const alerts = await dbQuery("SELECT * FROM alerts");
     const documents = await dbQuery("SELECT * FROM documents");
+    const projectDocuments = await dbQuery("SELECT * FROM projectDocuments");
     const actions = await dbQuery("SELECT * FROM actions");
     const agents = await dbQuery("SELECT * FROM agents");
     const tasks = await dbQuery("SELECT * FROM tasks");
     const recent_expenses = await dbQuery("SELECT * FROM recent_expenses");
+    const expenseTransactions = await dbQuery("SELECT * FROM expenseTransactions");
     const statsRows = await dbQuery("SELECT * FROM stats");
     const incomes = await dbQuery("SELECT * FROM incomes");
     const schedule = await dbQuery("SELECT * FROM schedule");
@@ -405,10 +415,12 @@ app.get('/api/db', async (req, res) => {
       expenses,
       alerts,
       documents: parsedDocuments,
+      projectDocuments,
       actions,
       agents,
       tasks,
       recent_expenses,
+      expenseTransactions,
       incomes,
       schedule,
       agentPerformance: statsObj.agentPerformance || {}

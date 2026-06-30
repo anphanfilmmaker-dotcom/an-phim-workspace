@@ -675,7 +675,7 @@ app.patch('/api/projectdocuments/:projectId', async (req, res) => {
     let query = "UPDATE projectdocuments SET ";
     let values = [];
     for (const [key, val] of Object.entries(updates)) {
-      query += `"${key}" = ?, `;
+      query += `"${key.toLowerCase()}" = ?, `;
       values.push(val);
     }
     query = query.slice(0, -2) + ` WHERE projectid = ?`;

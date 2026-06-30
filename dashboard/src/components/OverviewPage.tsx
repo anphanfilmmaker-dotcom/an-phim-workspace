@@ -64,23 +64,20 @@ export default function OverviewPage({
   const pendingActions = React.useMemo(() => {
     const todayStr = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0];
     
-    // Include schedule events for today, EVEN IF DONE. They will naturally disappear tomorrow.
-    const todayEvents = (db.schedule || [])
-      .filter(e => e.date === todayStr)
-      .map(e => ({
-        id: e.id,
-        priorityOrder: 0,
-        title: (e.startTime ? `${e.startTime} - ` : "") + e.title,
-        project: e.projectId || (lang === "en" ? "Meeting" : "Lịch hẹn"),
-        priorityLevel: e.priority === "high" ? "High" : "Medium",
-        suggestedAgent: e.agent || "Trâm Anh",
-        status: e.status === "done" ? "Done" : "Pending",
-        category: "meeting"
-      } as CEOAction));
+    let completedTodayMap: Record<string, string> = {};
+    try {
+      completedTodayMap = JSON.parse(localStorage.getItem('anphim_completed_today') || '{}');
+    } catch(e) {}
       
     const actions = (db.actions || []).filter(a => {
       if (a.status !== "Done") return true;
-      // If it is Done, check if it was created today
+      // If it is a mapped schedule event from today, keep it!
+      if (a.id.startsWith("sync_evt_")) return true;
+      
+      // If it was marked as completed today in local storage, keep it!
+      if (completedTodayMap[a.id] === todayStr) return true;
+
+      // If it is a normal action, check if it was created today
       if (a.id.startsWith("ACT-")) {
         const ts = parseInt(a.id.replace("ACT-", ""), 10);
         if (!isNaN(ts)) {
@@ -91,8 +88,8 @@ export default function OverviewPage({
       return false;
     });
     
-    return [...todayEvents, ...actions].sort((a, b) => a.priorityOrder - b.priorityOrder);
-  }, [db.schedule, db.actions, lang]);
+    return actions.sort((a, b) => a.priorityOrder - b.priorityOrder);
+  }, [db.actions, lang]);
 
   // Separate pending count for the "CEO Decisions" badge
   const pendingCount = pendingActions.filter(a => a.status !== "Done").length;
@@ -677,6 +674,14 @@ function TodayTasksPanel({
     });
     
     if (allDone && !isDbDone) {
+      // Record completion date in localStorage
+      const todayStr = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0];
+      try {
+        const completedMap = JSON.parse(localStorage.getItem('anphim_completed_today') || '{}');
+        completedMap[actId] = todayStr;
+        localStorage.setItem('anphim_completed_today', JSON.stringify(completedMap));
+      } catch(e) {}
+      
       onUpdateActionStatus(actId, "Done");
     } else if (!allDone && isDbDone) {
       onUpdateActionStatus(actId, "Pending");

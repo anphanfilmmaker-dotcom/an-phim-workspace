@@ -36,6 +36,15 @@ import {
 } from "lucide-react";
 import { translations } from "./translations";
 
+export const apiFetch = async (url: string, options: RequestInit = {}) => {
+  const token = localStorage.getItem('anphim_auth_token');
+  const headers = new Headers(options.headers || {});
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  return fetch(url, { ...options, headers });
+};
+
 type PageId = "overview" | "projects" | "finance" | "agents" | "documents" | "schedule";
 
 export default function App() {
@@ -142,7 +151,7 @@ export default function App() {
   useEffect(() => {
     const tokenStr = localStorage.getItem('anphim_auth_token');
     const headers = tokenStr ? { 'Authorization': `Bearer ${tokenStr}` } : undefined;
-    fetch('/api/db', { headers })
+    apiFetch('/api/db', { headers })
       .then(res => {
         if (!res.ok) throw new Error("API response not ok");
         return res.json();
@@ -228,14 +237,14 @@ export default function App() {
     });
     
     // Sync to backend
-    fetch(`/api/tasks/${taskId}`, {
+    apiFetch(`/api/tasks/${taskId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: "Completed" })
     }).catch(console.error);
     
     if (matchedActionId) {
-      fetch(`/api/actions/${matchedActionId}`, {
+      apiFetch(`/api/actions/${matchedActionId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: "Done" })
@@ -254,7 +263,7 @@ export default function App() {
     updateDbState({ ...db, agents: nextAgents });
     
     // Sync to backend
-    fetch(`/api/agents/${agentId}`, {
+    apiFetch(`/api/agents/${agentId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status })
@@ -282,7 +291,7 @@ export default function App() {
     updateDbState({ ...db, actions: nextActions });
     
     // Sync to backend
-    fetch(`/api/actions/${actionId}`, {
+    apiFetch(`/api/actions/${actionId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: nextStatus })
@@ -300,7 +309,7 @@ export default function App() {
     updateDbState({ ...db, projects: nextProjects });
     
     // Sync to backend
-    fetch(`/api/projects/${projectId}`, {
+    apiFetch(`/api/projects/${projectId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ notes })
@@ -318,7 +327,7 @@ export default function App() {
     updateDbState({ ...db, projects: nextProjects });
     
     // Sync to backend
-    fetch(`/api/projects/${updatedProj.id}`, {
+    apiFetch(`/api/projects/${updatedProj.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedProj)
@@ -333,7 +342,7 @@ export default function App() {
     });
     
     // Sync to backend
-    fetch(`/api/documents`, {
+    apiFetch(`/api/documents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newDoc)
@@ -348,7 +357,7 @@ export default function App() {
     });
     
     // Sync to backend
-    fetch(`/api/documents/${docId}`, {
+    apiFetch(`/api/documents/${docId}`, {
       method: 'DELETE'
     }).catch(console.error);
   };
@@ -365,7 +374,7 @@ export default function App() {
     updateDbState({ ...db, documents: nextDocs });
     
     // Sync to backend
-    fetch(`/api/documents/${docId}/status`, {
+    apiFetch(`/api/documents/${docId}/status`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: nextStatus, isUrgent })
@@ -393,7 +402,7 @@ export default function App() {
     updateDbState({ ...db, projectDocuments: nextDocs });
     
     // Sync to backend
-    fetch(`/api/projectdocuments/${projectId}`, {
+    apiFetch(`/api/projectdocuments/${projectId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dbUpdatePayload)
@@ -408,7 +417,7 @@ export default function App() {
     });
     
     // Sync to backend
-    fetch(`/api/projects`, {
+    apiFetch(`/api/projects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newProj)
@@ -515,7 +524,7 @@ export default function App() {
       });
       
       // Sync to backend
-      fetch(`/api/schedule/${eventId}`, {
+      apiFetch(`/api/schedule/${eventId}`, {
         method: 'DELETE'
       }).catch(console.error);
     }
@@ -558,7 +567,7 @@ export default function App() {
       });
       
       // Sync to backend
-      fetch(`/api/schedule/${updatedEvent.id}`, {
+      apiFetch(`/api/schedule/${updatedEvent.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedEvent)
@@ -574,7 +583,7 @@ export default function App() {
     });
     
     // Sync to backend
-    fetch(`/api/schedule`, {
+    apiFetch(`/api/schedule`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newEvent)

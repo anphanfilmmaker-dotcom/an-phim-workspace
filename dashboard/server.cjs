@@ -687,10 +687,10 @@ app.patch('/api/projectdocuments/:projectId', async (req, res) => {
 // Schedule API
 app.post('/api/schedule', async (req, res) => {
   try {
-    const { id, title, date, startTime, type, participants, category, priority, status, projectId, description } = req.body;
-    await dbRun(`INSERT INTO schedule (id, title, date, "startTime", type, participants, category, priority, status, "projectId", description) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
-                 [id, title, date, startTime, type, participants, category, priority, status, projectId, description]);
+    const { id, title, description, startTime, endTime, date, category, priority, status, owner, agent, projectId } = req.body;
+    await dbRun(`INSERT INTO schedule (id, title, description, "startTime", "endTime", date, category, priority, status, owner, agent, "projectId") 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+                 [id, title, description, startTime, endTime, date, category, priority, status, owner, agent, projectId]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

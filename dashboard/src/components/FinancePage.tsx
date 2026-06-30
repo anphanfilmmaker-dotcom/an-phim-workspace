@@ -149,8 +149,8 @@ export default function FinancePage({
       }
     };
 
-    (db.incomes || []).forEach(inc => processItem(inc.date, inc.amount, true));
-    (db.expenseTransactions || []).forEach(exp => processItem(exp.date, exp.amount, false));
+    (db.incomes || []).forEach(inc => processItem(inc.date, Number(inc.amount) || 0, true));
+    (db.expenseTransactions || []).forEach(exp => processItem(exp.date, Number(exp.amount) || 0, false));
 
     let totalHistoricalNet = 0;
     let netBeforeFirstBucket = 0;
@@ -166,15 +166,17 @@ export default function FinancePage({
     (db.incomes || []).forEach(inc => {
       const d = new Date(inc.date);
       if (!isNaN(d.getTime())) {
-        totalHistoricalNet += inc.amount;
-        if (d.getTime() < firstBucketStartMs) netBeforeFirstBucket += inc.amount;
+        const amt = Number(inc.amount) || 0;
+        totalHistoricalNet += amt;
+        if (d.getTime() < firstBucketStartMs) netBeforeFirstBucket += amt;
       }
     });
     (db.expenseTransactions || []).forEach(exp => {
       const d = new Date(exp.date);
       if (!isNaN(d.getTime())) {
-        totalHistoricalNet -= exp.amount;
-        if (d.getTime() < firstBucketStartMs) netBeforeFirstBucket -= exp.amount;
+        const amt = Number(exp.amount) || 0;
+        totalHistoricalNet -= amt;
+        if (d.getTime() < firstBucketStartMs) netBeforeFirstBucket -= amt;
       }
     });
 
@@ -199,7 +201,7 @@ export default function FinancePage({
   const estimatedProfit = db.projects.reduce((sum, p) => {
     const projectExpenses = (db.expenseTransactions || [])
       .filter(e => e.project === p.name)
-      .reduce((s, e) => s + e.amount, 0);
+      .reduce((s, e) => s + (Number(e.amount) || 0), 0);
     return sum + (p.received * 0.92 - projectExpenses);
   }, 0);
 
@@ -295,9 +297,9 @@ export default function FinancePage({
     rawExpenses.forEach(e => {
       const d = new Date(e.date);
       if (d > last7DaysStart && d <= maxDate) {
-        currWeekTotal += e.amount;
+        currWeekTotal += Number(e.amount) || 0;
       } else if (d > prev7DaysStart && d <= last7DaysStart) {
-        prevWeekTotal += e.amount;
+        prevWeekTotal += Number(e.amount) || 0;
       }
     });
 
@@ -364,8 +366,9 @@ export default function FinancePage({
     const categoryTotals: Record<string, number> = {};
     let totalAmt = 0;
     filteredExpenses.forEach(e => {
-      categoryTotals[e.category] = (categoryTotals[e.category] || 0) + e.amount;
-      totalAmt += e.amount;
+      const amt = Number(e.amount) || 0;
+      categoryTotals[e.category] = (categoryTotals[e.category] || 0) + amt;
+      totalAmt += amt;
     });
 
     return Object.keys(categoryTotals).map((cat) => {

@@ -64,8 +64,9 @@ export default function OverviewPage({
   const pendingActions = React.useMemo(() => {
     const todayStr = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0];
     
+    // Include schedule events for today, EVEN IF DONE. They will naturally disappear tomorrow.
     const todayEvents = (db.schedule || [])
-      .filter(e => e.date === todayStr && e.status !== "done")
+      .filter(e => e.date === todayStr)
       .map(e => ({
         id: e.id,
         priorityOrder: 0,
@@ -73,14 +74,28 @@ export default function OverviewPage({
         project: e.projectId || (lang === "en" ? "Meeting" : "Lịch hẹn"),
         priorityLevel: e.priority === "high" ? "High" : "Medium",
         suggestedAgent: e.agent || "Trâm Anh",
-        status: "Pending",
+        status: e.status === "done" ? "Done" : "Pending",
         category: "meeting"
       } as CEOAction));
       
-    const actions = (db.actions || []).filter(a => a.status !== "Done");
+    const actions = (db.actions || []).filter(a => {
+      if (a.status !== "Done") return true;
+      // If it is Done, check if it was created today
+      if (a.id.startsWith("ACT-")) {
+        const ts = parseInt(a.id.replace("ACT-", ""), 10);
+        if (!isNaN(ts)) {
+          const actDate = new Date(ts - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0];
+          if (actDate === todayStr) return true;
+        }
+      }
+      return false;
+    });
     
     return [...todayEvents, ...actions].sort((a, b) => a.priorityOrder - b.priorityOrder);
   }, [db.schedule, db.actions, lang]);
+
+  // Separate pending count for the "CEO Decisions" badge
+  const pendingCount = pendingActions.filter(a => a.status !== "Done").length;
 
   // Missing documents calculation
   const missingDocumentsCount = db.projectDocuments?.filter(p => [p.quote, p.contract, p.vatR1, p.vatR2, p.vatR3, p.liquidation].filter(Boolean).length < 6).length || 0;
@@ -569,7 +584,7 @@ export default function OverviewPage({
                 {t.pendingCeoDecisions}
               </h4>
               <p className="text-xs sm:text-sm font-bold text-white tracking-tight font-sans mt-1">
-                {t.actionsNeedApproval.replace("{count}", String(pendingActions.length))}
+                {t.actionsNeedApproval.replace("{count}", String(pendingCount))}
               </p>
               <p className="text-[10px] text-neutral-400 leading-snug font-sans mt-1">
                 {t.directCreativeApprovals}
@@ -581,7 +596,7 @@ export default function OverviewPage({
                 onClick={onTriggerDecisionReview}
                 className="w-8 h-8 rounded-full bg-orange-950/20 hover:bg-orange-600/20 text-orange-400 hover:text-orange-300 border border-orange-500/30 font-bold font-sans text-xs flex items-center justify-center transition shadow-lg shrink-0 cursor-pointer animate-pulse"
               >
-                {pendingActions.length}
+                {pendingCount}
               </button>
             </div>
           </div>
@@ -648,13 +663,23 @@ function TodayTasksPanel({
   const [checkedMap, setCheckedMap] = useState<Record<string, boolean>>({});
 
   const toggle = (key: string, actId: string, subTasks: string[]) => {
-    const next = { ...checkedMap, [key]: !checkedMap[key] };
+    const act = actions.find(a => a.id === actId);
+    const isDbDone = act?.status === "Done";
+    const currentChecked = checkedMap[key] !== undefined ? checkedMap[key] : isDbDone;
+    
+    const next = { ...checkedMap, [key]: !currentChecked };
     setCheckedMap(next);
 
     // Nếu tất cả sub-tasks của action này đã được tick → đánh dấu Done
-    const allDone = subTasks.every((_, idx) => next[`${actId}_${idx}`]);
-    if (allDone) {
+    const allDone = subTasks.every((_, idx) => {
+      const k = `${actId}_${idx}`;
+      return next[k] !== undefined ? next[k] : isDbDone;
+    });
+    
+    if (allDone && !isDbDone) {
       onUpdateActionStatus(actId, "Done");
+    } else if (!allDone && isDbDone) {
+      onUpdateActionStatus(actId, "Pending");
     }
   };
 
@@ -711,7 +736,8 @@ function TodayTasksPanel({
               <div className="space-y-1.5">
                 {subTasks.map((task, idx) => {
                   const key = `${act.id}_${idx}`;
-                  const checked = !!checkedMap[key];
+                  const isDbDone = act.status === "Done";
+                  const checked = checkedMap[key] !== undefined ? checkedMap[key] : isDbDone;
 
                   return (
                     <label

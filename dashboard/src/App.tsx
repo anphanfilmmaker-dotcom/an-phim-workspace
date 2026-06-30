@@ -123,25 +123,25 @@ export default function App() {
       status: p.status || "Chưa bắt đầu",
       budget: Number(p.budget) || 0,
       received: Number(p.received) || 0,
-      paymentD1: Number(p.paymentD1) || 0,
-      paymentD2: Number(p.paymentD2) || 0,
-      paymentD3: Number(p.paymentD3) || 0,
-      dueDate: p.dueDate || "",
-      nextAction: p.nextAction || "",
-      nextActionDue: p.nextActionDue || "",
-      projectType: p.projectType || "AI Render",
+      paymentD1: Number(p.paymentD1 !== undefined ? p.paymentD1 : p.paymentd1) || 0,
+      paymentD2: Number(p.paymentD2 !== undefined ? p.paymentD2 : p.paymentd2) || 0,
+      paymentD3: Number(p.paymentD3 !== undefined ? p.paymentD3 : p.paymentd3) || 0,
+      dueDate: p.dueDate || p.duedate || "",
+      nextAction: p.nextAction || p.nextaction || "",
+      nextActionDue: p.nextActionDue || p.nextactiondue || "",
+      projectType: p.projectType || p.projecttype || "AI Render",
       milestones,
-      paymentPhase: p.paymentPhase || "Phase 1",
-      paymentPhaseProgress: Number(p.paymentPhaseProgress) || 0,
-      thumbnailUrl: p.thumbnailUrl || "",
+      paymentPhase: p.paymentPhase || p.paymentphase || "Phase 1",
+      paymentPhaseProgress: Number(p.paymentPhaseProgress !== undefined ? p.paymentPhaseProgress : p.paymentphaseprogress) || 0,
+      thumbnailUrl: p.thumbnailUrl || p.thumbnailurl || "",
       notes: p.notes || "",
     };
   };
 
   // Fetch real data from the Backend API on load
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const headers = token ? { 'Authorization': `Bearer ${token}` } : undefined;
+    const tokenStr = localStorage.getItem('anphim_auth_token');
+    const headers = tokenStr ? { 'Authorization': `Bearer ${tokenStr}` } : undefined;
     fetch('/api/db', { headers })
       .then(res => {
         if (!res.ok) throw new Error("API response not ok");
@@ -152,11 +152,35 @@ export default function App() {
           const safeDb: GoogleSheetDB = {
             ...db,
             ...data,
+            dashboard: { ...(db.dashboard || {}), ...(data.dashboard || {}) },
+            agentPerformance: { ...(db.agentPerformance || {}), ...(data.agentPerformance || {}) },
             projects: (data.projects || []).map(normalizeProject),
             cashFlow: data.cashFlow || db.cashFlow,
             expenses: data.expenses || db.expenses,
             alerts: data.alerts || db.alerts,
-            documents: data.documents || db.documents,
+            projectDocuments: (data.projectDocuments || db.projectDocuments || []).map((pd: any) => ({
+              projectId: pd.projectId || pd.projectid || "",
+              projectName: pd.projectName || pd.projectname || "",
+              overallStatus: pd.overallStatus || pd.overallstatus || "N/A",
+              quote: !!pd.quote,
+              contract: !!pd.contract,
+              vatR1: !!(pd.vatR1 !== undefined ? pd.vatR1 : pd.vatr1),
+              vatR2: !!(pd.vatR2 !== undefined ? pd.vatR2 : pd.vatr2),
+              vatR3: !!(pd.vatR3 !== undefined ? pd.vatR3 : pd.vatr3),
+              liquidation: !!pd.liquidation,
+              quoteLink: pd.quoteLink || pd.quote_link || "",
+              contractLink: pd.contractLink || pd.contract_link || "",
+              vatR1Link: pd.vatR1Link || pd.vatr1_link || "",
+              vatR2Link: pd.vatR2Link || pd.vatr2_link || "",
+              vatR3Link: pd.vatR3Link || pd.vatr3_link || "",
+              liquidationLink: pd.liquidationLink || pd.liquidation_link || ""
+            })),
+            expenseTransactions: (data.expenseTransactions || db.expenseTransactions || []).map((exp: any) => ({
+              ...exp,
+              projectId: exp.projectId || exp.projectid || "",
+              paymentMethod: exp.paymentMethod || exp.paymentmethod || "",
+              amount: Number(exp.amount) || 0
+            })),
             actions: data.actions || db.actions,
             agents: data.agents || db.agents,
             tasks: data.tasks || db.tasks,
@@ -188,8 +212,10 @@ export default function App() {
 
     // Also mark the corresponding action item as completed if matched
     const matchedTask = db.tasks.find(t => t.id === taskId);
+    let matchedActionId: string | null = null;
     const nextActions = db.actions.map((act) => {
       if (matchedTask && act.title.toLowerCase().includes(matchedTask.taskName.toLowerCase().slice(0, 15))) {
+        matchedActionId = act.id;
         return { ...act, status: "Done" as const };
       }
       return act;
@@ -200,6 +226,21 @@ export default function App() {
       tasks: nextTasks,
       actions: nextActions
     });
+    
+    // Sync to backend
+    fetch(`/api/tasks/${taskId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: "Completed" })
+    }).catch(console.error);
+    
+    if (matchedActionId) {
+      fetch(`/api/actions/${matchedActionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: "Done" })
+      }).catch(console.error);
+    }
   };
 
   // Handler: Modify AI agent worker status
@@ -211,6 +252,13 @@ export default function App() {
       return agent;
     });
     updateDbState({ ...db, agents: nextAgents });
+    
+    // Sync to backend
+    fetch(`/api/agents/${agentId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    }).catch(console.error);
   };
 
   // Handler: Modify direct action items inline
@@ -232,6 +280,13 @@ export default function App() {
       return act;
     });
     updateDbState({ ...db, actions: nextActions });
+    
+    // Sync to backend
+    fetch(`/api/actions/${actionId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: nextStatus })
+    }).catch(console.error);
   };
 
   // Handler: Update private notes on film projects
@@ -243,6 +298,13 @@ export default function App() {
       return proj;
     });
     updateDbState({ ...db, projects: nextProjects });
+    
+    // Sync to backend
+    fetch(`/api/projects/${projectId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes })
+    }).catch(err => console.error("Failed to sync project notes to DB", err));
   };
 
   // Handler: Update full project
@@ -254,6 +316,13 @@ export default function App() {
       return proj;
     });
     updateDbState({ ...db, projects: nextProjects });
+    
+    // Sync to backend
+    fetch(`/api/projects/${updatedProj.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedProj)
+    }).catch(console.error);
   };
 
   // Handler: Add document from drag and drop uploader
@@ -262,6 +331,13 @@ export default function App() {
       ...db,
       documents: [newDoc, ...db.documents]
     });
+    
+    // Sync to backend
+    fetch(`/api/documents`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newDoc)
+    }).catch(console.error);
   };
 
   // Handler: Delete document
@@ -270,34 +346,58 @@ export default function App() {
       ...db,
       documents: db.documents.filter(d => d.id !== docId)
     });
+    
+    // Sync to backend
+    fetch(`/api/documents/${docId}`, {
+      method: 'DELETE'
+    }).catch(console.error);
   };
 
   // Handler: Sync legal doc state
   const handleUpdateDocStatus = (docId: string, nextStatus: DocStatus) => {
+    const isUrgent = nextStatus === "Signed" || nextStatus === "Approved" ? false : undefined;
     const nextDocs = db.documents.map((doc) => {
       if (doc.id === docId) {
-        return { ...doc, status: nextStatus, isUrgent: nextStatus === "Signed" || nextStatus === "Approved" ? false : doc.isUrgent };
+        return { ...doc, status: nextStatus, isUrgent: isUrgent !== undefined ? isUrgent : doc.isUrgent };
       }
       return doc;
     });
     updateDbState({ ...db, documents: nextDocs });
+    
+    // Sync to backend
+    fetch(`/api/documents/${docId}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: nextStatus, isUrgent })
+    }).catch(console.error);
   };
 
   // Handler: Sync project document checklist state
   const handleUpdateProjectDocument = (projectId: string, field: string, value: any) => {
     if (!db.projectDocuments) return;
+    
+    let dbUpdatePayload: any = { [field]: value };
+    
     const nextDocs = db.projectDocuments.map((pd) => {
       if (pd.projectId === projectId) {
         const nextPd = { ...pd, [field]: value };
         const count = [nextPd.quote, nextPd.contract, nextPd.vatR1, nextPd.vatR2, nextPd.vatR3, nextPd.liquidation].filter(Boolean).length;
         if (count === 6 && field !== 'overallStatus' && !nextPd.overallStatus) {
           nextPd.overallStatus = "đã đủ";
+          dbUpdatePayload['overallStatus'] = "đã đủ";
         }
         return nextPd;
       }
       return pd;
     });
     updateDbState({ ...db, projectDocuments: nextDocs });
+    
+    // Sync to backend
+    fetch(`/api/projectdocuments/${projectId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dbUpdatePayload)
+    }).catch(err => console.error("Failed to sync project document state to DB", err));
   };
 
   // Handler: Register brand new project
@@ -306,6 +406,13 @@ export default function App() {
       ...db,
       projects: [newProj, ...db.projects]
     });
+    
+    // Sync to backend
+    fetch(`/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newProj)
+    }).catch(console.error);
   };
 
   const parseDateSafeToYYYYMMDD = (dateStr: any): string | null => {
@@ -406,6 +513,11 @@ export default function App() {
         ...db,
         schedule: db.schedule.filter(e => e.id !== eventId)
       });
+      
+      // Sync to backend
+      fetch(`/api/schedule/${eventId}`, {
+        method: 'DELETE'
+      }).catch(console.error);
     }
   };
 
@@ -444,6 +556,13 @@ export default function App() {
         ...db,
         schedule: db.schedule.map(e => e.id === updatedEvent.id ? updatedEvent : e)
       });
+      
+      // Sync to backend
+      fetch(`/api/schedule/${updatedEvent.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedEvent)
+      }).catch(console.error);
     }
   };
 
@@ -453,6 +572,13 @@ export default function App() {
       ...db,
       schedule: [...(db.schedule || []), newEvent]
     });
+    
+    // Sync to backend
+    fetch(`/api/schedule`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newEvent)
+    }).catch(console.error);
   };
 
   // Global Sync logic from Spreadsheet popup
@@ -462,7 +588,7 @@ export default function App() {
 
   // Helper: Get completed projects sorted or padded for the sidebar brief
   const getCompletedProjectsForSidebar = () => {
-    const completed = db.projects.filter(p => p.status === "Hoàn thành");
+    const completed = db.projects.filter(p => p.status === "Hoàn thành" && p.projectType !== "Internal");
     if (completed.length >= 3) return completed.slice(0, 3);
     const others = db.projects
       .filter(p => p.status !== "Hoàn thành")
@@ -659,6 +785,20 @@ export default function App() {
             >
               <Bot className="w-4 h-4 shrink-0" />
               {!isSidebarCollapsed && <span>{t.aiAgentsTrace}</span>}
+            </button>
+
+            {/* Nav 6: Logout */}
+            <button
+              id="sidebar_logout"
+              onClick={() => {
+                localStorage.removeItem("anphim_auth_token");
+                setToken(null);
+              }}
+              title={isSidebarCollapsed ? (lang === "en" ? "Sign Out" : "Đăng Xuất") : undefined}
+              className={`w-full flex items-center ${isSidebarCollapsed ? "justify-center px-1" : "space-x-3 px-3"} py-2.5 rounded-lg text-[10px] font-mono tracking-wide transition-all outline-none mt-4 text-red-500 hover:text-red-400 border border-transparent hover:bg-red-950/30`}
+            >
+              <LogOut className="w-4 h-4 shrink-0" />
+              {!isSidebarCollapsed && <span>{lang === "en" ? "SIGN OUT" : "ĐĂNG XUẤT"}</span>}
             </button>
 
           </nav>

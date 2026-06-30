@@ -244,12 +244,12 @@ export default function DocumentsPage({
                       if (!docSet) return null;
                       
                       const docs = [
-                        { label: "Báo giá", field: "quote", completed: docSet.quote },
-                        { label: "Hợp đồng", field: "contract", completed: docSet.contract },
-                        { label: "VAT R1", field: "vatR1", completed: docSet.vatR1 },
-                        { label: "VAT R2", field: "vatR2", completed: docSet.vatR2 },
-                        { label: "VAT R3", field: "vatR3", completed: docSet.vatR3 },
-                        { label: "Biên bản thanh lý", field: "liquidation", completed: docSet.liquidation },
+                        { label: "Báo giá", field: "quote", completed: docSet.quote, link: docSet.quoteLink },
+                        { label: "Hợp đồng", field: "contract", completed: docSet.contract, link: docSet.contractLink },
+                        { label: "VAT R1", field: "vatR1", completed: docSet.vatR1, link: docSet.vatR1Link },
+                        { label: "VAT R2", field: "vatR2", completed: docSet.vatR2, link: docSet.vatR2Link },
+                        { label: "VAT R3", field: "vatR3", completed: docSet.vatR3, link: docSet.vatR3Link },
+                        { label: "Biên bản thanh lý", field: "liquidation", completed: docSet.liquidation, link: docSet.liquidationLink },
                       ];
 
                       const isComplete = docs.every(d => d.completed);
@@ -291,7 +291,7 @@ export default function DocumentsPage({
                                     </span>
                                     {doc.completed && (
                                       <a 
-                                        href="https://drive.google.com/" 
+                                        href={doc.link || "https://drive.google.com/"} 
                                         target="_blank" 
                                         rel="noreferrer"
                                         className="ml-1.5 p-0.5 text-orange-400 opacity-50 hover:opacity-100 transition"

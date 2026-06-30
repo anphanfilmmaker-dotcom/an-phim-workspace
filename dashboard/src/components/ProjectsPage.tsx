@@ -163,6 +163,9 @@ export default function ProjectsPage({
   };
 
   const filteredProjects = db.projects.filter(p => {
+    // Hide virtual/internal projects
+    if (p.projectType === 'Internal') return false;
+
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           p.client.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "All" || p.status === statusFilter;

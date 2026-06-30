@@ -193,210 +193,37 @@ const dynamicExpenses = Object.keys(categoryTotals).map((cat, idx) => {
   };
 }).sort((a, b) => b.amount - a.amount);
 
-const totalReceivedAmt = mappedProjects.reduce((sum, p) => sum + p.received, 0);
-
-// Initial mockup dataset based directly on the provided screenshots and company context "AN PHIM"
 export const INITIAL_SHEET_DATA: GoogleSheetDB = {
   dashboard: {
-    cashAvailable: (totalReceivedAmt * 0.92) - totalExpensesAmt,
-    cashAvailableChange: "8.4% vs last week",
-    receivable: 6_310_000_000,
-    receivableChange: "5.1% vs last week",
-    activeProjectsCount: 12,
-    activeProjectsChange: "2 vs last week",
-    actionsCount: 6,
-    actionsCompletedCount: 4,
+    cashAvailable: 0,
+    cashAvailableChange: "0% vs last week",
+    receivable: 0,
+    receivableChange: "0% vs last week",
+    activeProjectsCount: 0,
+    activeProjectsChange: "0 vs last week",
+    actionsCount: 0,
+    actionsCompletedCount: 0,
   },
-  projects: mappedProjects,
-  expenses: dynamicExpenses,
-  expenseTransactions: mappedExpenses,
-  incomes: [
-    { id: "inc_mock_1", date: "2026-06-01", project: "TVC Launch Film", amount: 450_000_000, notes: "Advance payment" },
-    { id: "inc_mock_2", date: "2026-06-03", project: "Social Campaign", amount: 620_000_000, notes: "Phase 1 payment" },
-    { id: "inc_mock_3", date: "2026-06-07", project: "Real Estate KV", amount: 980_000_000, notes: "Final payment" }
-  ],
-  projectDocuments: mappedProjectDocuments,
-  actions: [
-    {
-      id: "act_1",
-      priorityOrder: 1,
-      title: "- [ ] Kiểm tra báo cáo vượt ngân sách\n- [ ] Xác nhận số liệu với Finance Agent\n- [ ] Lên phương án cắt giảm chi phí",
-      project: "Real Estate Key Visual",
-      priorityLevel: "High",
-      suggestedAgent: "Finance Agent",
-      status: "Pending",
-      notes: ""
-    },
-    {
-      id: "act_2",
-      priorityOrder: 2,
-      title: "- [ ] Xác nhận 5 hóa đơn freelancer\n- [ ] Phê duyệt thanh toán đợt này\n- [ ] Gửi xác nhận cho kế toán",
-      project: "Behind The Lights",
-      priorityLevel: "Medium",
-      suggestedAgent: "Finance Agent",
-      status: "Pending",
-      notes: ""
-    },
-    {
-      id: "act_3",
-      priorityOrder: 3,
-      title: "- [ ] Liên hệ khách hàng yêu cầu hợp đồng\n- [ ] Chuẩn bị bản mẫu hợp đồng\n- [ ] Đặt lịch ký kết",
-      project: "Social Campaign Retainer",
-      priorityLevel: "Medium",
-      suggestedAgent: "Document Agent",
-      status: "Pending",
-      notes: ""
-    },
-    {
-      id: "act_4",
-      priorityOrder: 4,
-      title: "Confirm shoot schedule change",
-      project: "Real Estate Key Visual",
-      priorityLevel: "Low",
-      suggestedAgent: "PM Agent",
-      status: "Pending",
-      notes: ""
-    },
-    {
-      id: "act_5",
-      priorityOrder: 5,
-      title: "Audit creative asset quality",
-      project: "Shadows of Saigon",
-      priorityLevel: "Low",
-      suggestedAgent: "Creative Agent",
-      status: "Done",
-      notes: "Checked first drafts of color correction. Looks great."
-    },
-    {
-      id: "act_6",
-      priorityOrder: 6,
-      title: "Authorize remote developer keys",
-      project: "Admin Task",
-      priorityLevel: "Low",
-      suggestedAgent: "Admin Agent",
-      status: "Done",
-      notes: "Keys issued on Tuesday."
-    }
-  ],
-  agents: [
-    {
-      id: "agent_finance",
-      name: "Finance Agent",
-      status: "Active",
-      keyResponsibility: "Cash flow monitoring, forecasting, expense analysis, payment reminders.",
-      currentTask: "Reconciling Q2 transactions",
-      recentActivity: "Reconciled 12 bank transactions & generated forecast report.",
-      workloadProgress: 72,
-      avatarColor: "text-emerald-500 bg-emerald-500/10",
-      tokenInput: 15400,
-      tokenOutput: 3200,
-      runCount: 45,
-      estimatedCost: 0.12,
-    },
-    {
-      id: "agent_pm",
-      name: "PM Agent",
-      status: "Active",
-      keyResponsibility: "Project timeline tracking, risk monitoring, milestone updates.",
-      currentTask: "Updating project timelines",
-      recentActivity: "Updated 8 project milestones & flagged 2 overdue tasks.",
-      workloadProgress: 65,
-      avatarColor: "text-green-400 bg-green-500/10",
-      tokenInput: 8500,
-      tokenOutput: 1100,
-      runCount: 22,
-      estimatedCost: 0.05,
-    },
-    {
-      id: "agent_creative",
-      name: "Creative Agent",
-      status: "Active",
-      keyResponsibility: "Content ideation, asset review, storyboard support, creative feedback.",
-      currentTask: "Reviewing storyboard draft",
-      recentActivity: "Approved 3 concept variations and synthesized visual feedback.",
-      workloadProgress: 58,
-      avatarColor: "text-purple-400 bg-purple-500/10",
-      tokenInput: 45000,
-      tokenOutput: 12000,
-      runCount: 18,
-      estimatedCost: 0.85,
-    },
-    {
-      id: "agent_doc",
-      name: "Document Agent",
-      status: "Monitoring",
-      keyResponsibility: "Contract monitoring, invoice tracking, document extraction, missing document alerts.",
-      currentTask: "Analyzing vendor contract",
-      recentActivity: "Extracted 14 key clauses from Galaxy Studio contract.",
-      workloadProgress: 41,
-      avatarColor: "text-orange-400 bg-orange-500/10",
-      tokenInput: 32000,
-      tokenOutput: 4500,
-      runCount: 12,
-      estimatedCost: 0.35,
-    },
-    {
-      id: "agent_admin",
-      name: "Admin Agent",
-      status: "Active",
-      keyResponsibility: "System monitoring, approval tracking, user support & permission control.",
-      currentTask: "Reviewing access requests",
-      recentActivity: "Processed 6 access requests and resolved workspace block.",
-      workloadProgress: 27,
-      avatarColor: "text-blue-400 bg-blue-500/10",
-      tokenInput: 2100,
-      tokenOutput: 400,
-      runCount: 8,
-      estimatedCost: 0.01,
-    }
-  ],
-  tasks: [
-    { id: "task_1", taskName: "Review budget variance report", priority: "High", assignedAgent: "Finance Agent", status: "Running", dueTime: "Today 3:00 PM" },
-    { id: "task_2", taskName: "Approve creative concept v2", priority: "Medium", assignedAgent: "Creative Agent", status: "Waiting Input", dueTime: "Today 5:00 PM" },
-    { id: "task_3", taskName: "Analyze marketing contract", priority: "Medium", assignedAgent: "Document Agent", status: "Running", dueTime: "Tomorrow 10:00 AM" },
-    { id: "task_4", taskName: "Update project risk register", priority: "Low", assignedAgent: "PM Agent", status: "Running", dueTime: "Tomorrow 2:00 PM" },
-    { id: "task_5", taskName: "Process vendor payment", priority: "High", assignedAgent: "Finance Agent", status: "Pending", dueTime: "20/06/2026" }
-  ],
-  schedule: [
-    { id: "evt-001", title: "Lên ý tưởng TVC", date: "2026-06-03", startTime: "09:00", endTime: "10:30", category: "work", priority: "medium", status: "todo", owner: "An Phan", projectId: "project-tvc-001" },
-    { id: "evt-002", title: "Review kịch bản", date: "2026-06-04", startTime: "10:00", endTime: "11:00", category: "work", priority: "medium", status: "in_progress", owner: "Minh Đan", projectId: "project-film-001" },
-    { id: "evt-003", title: "Dựng phim teaser", date: "2026-06-05", startTime: "13:30", endTime: "16:00", category: "work", priority: "high", status: "todo", owner: "An Phan" },
-    { id: "evt-004", title: "Họp KH: Galaxy Corp", date: "2026-06-06", startTime: "10:00", endTime: "11:30", category: "meeting", priority: "high", status: "todo", owner: "An Phan" },
-    { id: "evt-005", title: "Chỉnh sửa feedback", date: "2026-06-07", startTime: "14:00", endTime: "17:00", category: "work", priority: "medium", status: "todo", owner: "Chí Hải" },
-    { id: "evt-006", title: "Sinh nhật mẹ", date: "2026-06-09", startTime: "19:00", category: "personal", priority: "high", status: "todo", owner: "An Phan" },
-    { id: "evt-007", title: "Sản xuất hậu kỳ", date: "2026-06-10", startTime: "09:30", endTime: "18:00", category: "work", priority: "medium", status: "in_progress", owner: "Minh Đan" },
-    { id: "evt-008", title: "Kiểm tra thiết bị", date: "2026-06-11", startTime: "11:00", category: "work", priority: "low", status: "todo", owner: "An Phan" },
-    { id: "evt-009", title: "Xuất file master", date: "2026-06-12", startTime: "16:00", category: "work", priority: "high", status: "todo", owner: "Chí Hải" },
-    { id: "evt-010", title: "Phỏng vấn ứng viên", date: "2026-06-13", startTime: "11:00", category: "meeting", priority: "medium", status: "todo", owner: "An Phan" },
-    { id: "evt-011", title: "AI Agent báo cáo", date: "2026-06-14", startTime: "08:30", category: "ai_agent", priority: "medium", status: "todo", agent: "Trâm Anh" },
-    { id: "evt-012", title: "Ngủ sớm", date: "2026-06-15", startTime: "22:30", category: "personal", priority: "low", status: "todo", owner: "An Phan" },
-    { id: "evt-013", title: "Jogging buổi sáng", date: "2026-06-16", startTime: "06:00", category: "personal", priority: "low", status: "done", owner: "An Phan" },
-    { id: "evt-014", title: "Họp dự án phim Mùa Hè", date: "2026-06-16", startTime: "14:00", endTime: "15:30", category: "meeting", priority: "high", status: "todo", owner: "An Phan" },
-    { id: "evt-015", title: "Chuẩn bị casting", date: "2026-06-17", startTime: "09:00", category: "work", priority: "medium", status: "todo", owner: "Minh Đan" },
-    { id: "evt-016", title: "Casting diễn viên", date: "2026-06-18", startTime: "13:00", category: "work", priority: "high", status: "todo", owner: "Minh Đan" },
-    { id: "evt-017", title: "Chốt danh sách", date: "2026-06-19", startTime: "15:00", category: "work", priority: "medium", status: "todo", owner: "An Phan" },
-    { id: "evt-018", title: "Họp biên kịch", date: "2026-06-20", startTime: "10:00", category: "meeting", priority: "medium", status: "todo", owner: "An Phan" },
-    { id: "evt-019", title: "Quay ngày 1", date: "2026-06-21", startTime: "07:00", category: "work", priority: "high", status: "todo", owner: "An Phan" },
-    { id: "evt-020", title: "Cafe với đối tác", date: "2026-06-23", startTime: "10:00", category: "meeting", priority: "medium", status: "todo", owner: "An Phan" },
-    { id: "evt-021", title: "Ăn uống lành mạnh", date: "2026-06-24", startTime: "07:00", category: "personal", priority: "low", status: "done", owner: "An Phan" },
-    { id: "evt-022", title: "Đọc kịch bản", date: "2026-06-24", startTime: "20:00", category: "work", priority: "low", status: "todo", owner: "An Phan" },
-    { id: "evt-023", title: "Quay ngày 2", date: "2026-06-25", startTime: "07:00", category: "work", priority: "high", status: "todo", owner: "An Phan" },
-    { id: "evt-024", title: "Quay ngày 3", date: "2026-06-26", startTime: "07:00", category: "work", priority: "high", status: "todo", owner: "An Phan" },
-    { id: "evt-025", title: "Họp tổng kết tiến độ", date: "2026-06-27", startTime: "16:00", category: "meeting", priority: "high", status: "todo", owner: "An Phan" },
-    { id: "evt-026", title: "AI Agent nhắc việc", date: "2026-06-28", startTime: "09:00", category: "ai_agent", priority: "medium", status: "todo", agent: "Trâm Anh" },
-    { id: "evt-027", title: "Gaming với bạn", date: "2026-06-30", startTime: "20:00", category: "personal", priority: "low", status: "todo", owner: "An Phan" }
-  ],
+  projects: [],
+  expenses: [],
+  expenseTransactions: [],
+  incomes: [],
+  projectDocuments: [],
+  actions: [],
+  agents: [],
+  tasks: [],
+  schedule: [],
   agentPerformance: {
-    completionRate: 92,
-    completionRateChange: "8% vs last week",
-    avgResponseTimeHours: 1.8,
-    avgResponseTimeChange: "0.4h vs last week",
-    blockedTasksCount: 4,
-    blockedTasksChange: "2 vs last week",
+    completionRate: 0,
+    completionRateChange: "0% vs last week",
+    avgResponseTimeHours: 0,
+    avgResponseTimeChange: "0h vs last week",
+    blockedTasksCount: 0,
+    blockedTasksChange: "0 vs last week",
   },
 };
 
-const LOCAL_STORAGE_KEY = "anphim_os_google_sheet_data_v32";
+const LOCAL_STORAGE_KEY = "anphim_os_google_sheet_data_v33";
 
 // Retrieve DB from local storage or fall back to mock data
 export function getStoredSheetData(): GoogleSheetDB {
@@ -440,7 +267,7 @@ export function setStoredSheetData(data: GoogleSheetDB) {
         totalReceivables += missing;
       }
     });
-    updatedData.dashboard.receivable = totalReceivables > 0 ? totalReceivables : 6310000000;
+    updatedData.dashboard.receivable = totalReceivables;
     
     // Total actions count
     updatedData.dashboard.actionsCount = updatedData.actions.length;

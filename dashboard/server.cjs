@@ -649,9 +649,15 @@ app.patch('/api/projects/:id', async (req, res) => {
     let query = "UPDATE projects SET ";
     let values = [];
     for (const [key, val] of Object.entries(updates)) {
-      query += `"${key}" = ?, `;
+      // Lowercase key because postgres columns were created without quotes (case folded to lower)
+      const colName = key.toLowerCase();
+      // Ignore some camelCase props that aren't columns or should be skipped
+      if (['projectname', 'totalexpenses'].includes(colName)) continue;
+      
+      query += `"${colName}" = ?, `;
       values.push(typeof val === 'object' ? JSON.stringify(val) : val);
     }
+    // Remove last comma and space
     query = query.slice(0, -2) + ` WHERE id = ?`;
     values.push(req.params.id);
     

@@ -1051,7 +1051,7 @@ export default function App() {
           {activePage === "overview" && (() => {
             const actualToday = new Date();
             const todayStr = `${actualToday.getFullYear()}-${String(actualToday.getMonth() + 1).padStart(2, '0')}-${String(actualToday.getDate()).padStart(2, '0')}`;
-            const todaysEvents = aggregatedDb.schedule.filter(e => e.date === todayStr && e.status !== 'done');
+            const todaysEvents = aggregatedDb.schedule.filter(e => e.date === todayStr);
             const mappedActionsFromEvents: import("./types").CEOAction[] = todaysEvents.map((e, idx) => ({
               id: `sync_evt_${e.id}`,
               priorityOrder: e.priority === 'high' ? 1 : 2,

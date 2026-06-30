@@ -210,8 +210,6 @@ async function initDb() {
       paymentD2 DOUBLE PRECISION,
       paymentD3 DOUBLE PRECISION,
       milestones TEXT,
-      paymentPhase VARCHAR(50),
-      paymentPhaseProgress INTEGER,
       thumbnailUrl VARCHAR(255),
       notes TEXT
     )`,

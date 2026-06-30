@@ -318,8 +318,6 @@ export default function ProjectsPage({
         { name: lang === "en" ? "Editing review" : "Phê duyệt dựng phim", date: lang === "en" ? "July 20, 2026" : "20 Tháng 7, 2026", completed: false },
         { name: lang === "en" ? "Wrap delivery" : "Bàn giao phim hoàn chỉnh", date: newProjDueDate, completed: false },
       ],
-      paymentPhase: lang === "en" ? "Phase 1 of 3" : "Đợt 1 trên 3",
-      paymentPhaseProgress: 0,
       thumbnailUrl: "https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=400&q=80",
       notes: lang === "en" ? "Newly integrated via CEO Command panel." : "Được đăng ký thông qua cổng chỉ đạo CEO."
     };

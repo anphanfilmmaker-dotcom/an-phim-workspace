@@ -31,8 +31,6 @@ export interface Project {
   nextActionDue?: string; // e.g. "May 22, 2025"
   projectType: ProjectType;
   milestones: { name: string; date: string; completed: boolean }[];
-  paymentPhase: string; // e.g. "Phase 3 of 4"
-  paymentPhaseProgress: number; // percentage, e.g. 60 for "60% paid for this phase"
   thumbnailUrl?: string; // Cover placeholder
   notes?: string; // CEO notes
 }

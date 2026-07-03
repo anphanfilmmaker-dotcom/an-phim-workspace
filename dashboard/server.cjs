@@ -313,6 +313,47 @@ async function initDb() {
 
 // REST API Endpoints
 
+// AGENT MEMORY & ROUTER APIs (Phase 2.1)
+app.get('/api/agent/tram_anh/profile', (req, res) => {
+  try {
+    const filePath = path.join(__dirname, 'agent_prompts', 'tram_anh_sop.md');
+    const content = fs.readFileSync(filePath, 'utf-8');
+    res.json({ content });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/agent/router', (req, res) => {
+  try {
+    const filePath = path.join(__dirname, 'agent_prompts', 'router_cloud.md');
+    const content = fs.readFileSync(filePath, 'utf-8');
+    res.json({ content });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/agent/:agentId/history', async (req, res) => {
+  try {
+    // Sliding window of 10 turns (limit 20 messages assuming alternating roles)
+    const history = await dbQuery("SELECT * FROM chat_history WHERE agent_id = ? ORDER BY created_at DESC LIMIT 20", [req.params.agentId]);
+    res.json({ history: history.reverse() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/agent/:agentId/history', async (req, res) => {
+  try {
+    const { role, content } = req.body;
+    await dbRun("INSERT INTO chat_history (agent_id, role, content) VALUES (?, ?, ?)", [req.params.agentId, role, content]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Fetch entire Database structure
 app.get('/api/db', async (req, res) => {
   try {
@@ -438,6 +479,28 @@ app.get('/api/db', async (req, res) => {
     });
   } catch (err) {
     console.error("API error fetching db:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// AGENT PROJECT APIs (Phase 2.1)
+app.get('/api/projects/active', async (req, res) => {
+  try {
+    const projects = await dbQuery("SELECT id, name, client, status, budget, received, \"dueDate\", \"nextAction\", \"nextActionDue\", \"projectType\" FROM projects WHERE status != 'Hidden' AND status != 'Hoàn thành'");
+    res.json({ projects });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/projects/:id/sow', async (req, res) => {
+  try {
+    const projects = await dbQuery("SELECT id, name, notes, milestones FROM projects WHERE id = ?", [req.params.id]);
+    if (projects.length === 0) return res.status(404).json({ error: "Project not found" });
+    const p = projects[0];
+    const sow = `SOW for Project: ${p.name}\nNotes: ${p.notes}\nMilestones: ${p.milestones}`;
+    res.json({ sow });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
@@ -726,6 +789,27 @@ app.delete('/api/schedule/:id', async (req, res) => {
   try {
     await dbRun("DELETE FROM schedule WHERE id = ?", [req.params.id]);
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELEGATION API (Phase 2.1)
+app.post('/api/agents/invoke', async (req, res) => {
+  try {
+    const { target, task } = req.body;
+    // In a real scenario, this would spawn a subagent or trigger a background job.
+    // For now, we log the invocation and return success.
+    console.log(`[Omnipotent Router] Trâm Anh invoked ${target} for task: "${task}"`);
+    
+    // Create a system message in the chat history of the target agent
+    await dbRun("INSERT INTO chat_history (agent_id, role, content) VALUES (?, ?, ?)", [
+      target, 
+      'system', 
+      `[TỪ TRÂM ANH]: ${task}`
+    ]);
+
+    res.json({ success: true, message: `Successfully invoked ${target}` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -313,10 +313,20 @@ async function initDb() {
 
 // REST API Endpoints
 
-// AGENT MEMORY & ROUTER APIs (Phase 2.1)
-app.get('/api/agent/tram_anh/profile', (req, res) => {
+// AGENT MEMORY & ROUTER APIs (Phase 2.1 - 2.5)
+app.get('/api/agent/:agentId/profile', (req, res) => {
   try {
-    const filePath = path.join(__dirname, 'agent_prompts', 'tram_anh_sop.md');
+    const agentMap = {
+      'tram_anh': 'tram_anh_sop.md',
+      'minh_thu': 'minh_thu_guideline.md',
+      'quoc_bao': 'quoc_bao_guideline.md',
+      'minh_dan': 'minh_dan_guideline.md',
+      'chi_hai': 'chi_hai_guideline.md'
+    };
+    const fileName = agentMap[req.params.agentId];
+    if (!fileName) return res.status(404).json({ error: "Agent not found" });
+    
+    const filePath = path.join(__dirname, 'agent_prompts', fileName);
     const content = fs.readFileSync(filePath, 'utf-8');
     res.json({ content });
   } catch (err) {
@@ -837,14 +847,88 @@ app.delete('/api/actions/:id', async (req, res) => {
   }
 });
 
-app.post('/api/agents/invoke', async (req, res) => {
+// ==================== PHASE 2.2: MINH THƯ (FINANCE) ====================
+app.post('/api/finance/incomes', async (req, res) => {
   try {
-    const { target, task } = req.body;
-    console.log(`[ORCHESTRATION] Agent invoked! Target: ${target}, Task: ${task}`);
-    await dbRun("INSERT INTO chat_history (agent_id, role, content) VALUES (?, 'system', ?)", [target, `[SYSTEM EVENT] You have been invoked with task: ${task}`]);
-    res.json({ success: true, message: `Invoked ${target} successfully` });
+    const { id, date, project, amount, notes } = req.body;
+    const incomeId = id || `INC-${Date.now()}`;
+    await dbRun("INSERT INTO incomes (id, date, project, amount, notes) VALUES (?, ?, ?, ?, ?)", [incomeId, date, project, amount, notes]);
+    res.json({ success: true, id: incomeId });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/finance/expenses', async (req, res) => {
+  try {
+    const { id, date, vendor, category, amount, paymentMethod, status, receiptUrl, notes, projectId } = req.body;
+    const expenseId = id || `EXP-${Date.now()}`;
+    await dbRun(`INSERT INTO expensetransactions (id, date, vendor, category, amount, "paymentMethod", status, "receiptUrl", notes, "projectId") 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+                 [expenseId, date, vendor, category, amount, paymentMethod, status || 'Pending', receiptUrl, notes, projectId]);
+    res.json({ success: true, id: expenseId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/finance/expenses/:id', async (req, res) => {
+  try {
+    const updates = req.body;
+    if (Object.keys(updates).length === 0) return res.json({ success: true });
+    let query = "UPDATE expensetransactions SET ";
+    let values = [];
+    for (const [key, val] of Object.entries(updates)) {
+      query += `"${key.toLowerCase()}" = ?, `;
+      values.push(val);
+    }
+    query = query.slice(0, -2) + ` WHERE id = ?`;
+    values.push(req.params.id);
+    await dbRun(query, values);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==================== PHASE 2.3: QUỐC BẢO (SALES) ====================
+app.get('/api/sales/debt', async (req, res) => {
+  try {
+    // Return projects where budget > received
+    const projects = await dbQuery("SELECT id, name, client, budget, received, \"dueDate\" FROM projects WHERE status != 'Hidden' AND status != 'Hoàn thành' AND budget > received");
+    res.json({ debtProjects: projects });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/projectdocuments/:projectId/quote', async (req, res) => {
+  try {
+    const { quoteStatus } = req.body; // e.g. true/false
+    await dbRun("UPDATE projectdocuments SET quote = ? WHERE projectid = ?", [quoteStatus, req.params.projectId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==================== PHASE 2.4: MINH ĐAN (CREATIVE) ====================
+app.get('/api/creative/tasks', async (req, res) => {
+  try {
+    const tasks = await dbQuery("SELECT * FROM schedule WHERE category = 'creative' OR category = 'fanpage' ORDER BY date ASC LIMIT 50");
+    res.json({ tasks });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==================== PHASE 2.5: CHÍ HẢI (IT) ====================
+app.get('/api/system/health', async (req, res) => {
+  try {
+    await dbQuery("SELECT 1"); // Simple query to check connection
+    res.json({ status: "healthy", database: "connected" });
+  } catch (err) {
+    res.status(500).json({ status: "unhealthy", error: err.message });
   }
 });
 

@@ -9,7 +9,7 @@
 - **Daily:** Monitor token consumption, catch system loops/crashes, and identify automation bottlenecks.
 - **Weekly (Monday):** Summarize all agents' activities, API costs ($8/month limit), and document errors and fixes for Sếp Phan An.
 - **Budget Control:** Maximize Google Cloud Free Tier. Keep Gemini API usage strictly under $8/month.
-- **Token Tracking Rule:** Must run `python e:\agent\dashboard\agent_scripts\token_tracker.py log_usage --agent_id [ID] --input_tokens [in] --output_tokens [out]` to record costs into the Cloud Database `agents` table.
+- **Token Tracking Rule:** Must run `python E:\.agents\Cloud\agent_scripts\token_tracker.py log_usage --agent_id [ID] --input_tokens [in] --output_tokens [out]` to record costs into the Cloud Database `agents` table.
 
 ## 3. World-Class Agent Protocol & Critical Thinking
 To operate as a top-tier Senior Developer, strictly follow this 4-step loop:

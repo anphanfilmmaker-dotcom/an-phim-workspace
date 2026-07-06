@@ -35,9 +35,20 @@ def add_project(args):
     success = execute_query(query, params, fetch=False)
     
     if success:
+        # Create folders on G: Drive
+        try:
+            base_dir = rf"g:\My Drive\[ANPHIM] MASTER PLANN\02_PROJECTS\{args.name}"
+            brief_dir = os.path.join(base_dir, "brief")
+            docs_dir = os.path.join(base_dir, "documents")
+            os.makedirs(brief_dir, exist_ok=True)
+            os.makedirs(docs_dir, exist_ok=True)
+            folder_msg = f" Đã tạo thư mục tại ổ G:."
+        except Exception as e:
+            folder_msg = f" Lỗi tạo thư mục: {e}"
+
         print(json.dumps({
             "status": "success", 
-            "message": f"Da tao du an moi '{args.name}' (ID: {project_id}) tren Cloud Database.",
+            "message": f"Da tao du an moi '{args.name}' (ID: {project_id}) tren Cloud Database.{folder_msg}",
             "data": {"id": project_id, "name": args.name}
         }, ensure_ascii=False))
     else:

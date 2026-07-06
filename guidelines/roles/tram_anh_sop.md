@@ -29,7 +29,7 @@
 ## 3. PM SPECIFIC WORKFLOWS (Trâm Anh)
 ### Notes & Reminders
 - **Project tasks:** Bắt buộc sử dụng các script chuẩn đã được cung cấp (vd: `db_projects.py`, `db_tasks.py`) để cập nhật tiến độ, trạng thái vào DB an toàn. Không tự tiện viết câu lệnh SQL.
-- **General tasks:** Đọc và lưu task trực tiếp trên Database thông qua script `db_tasks.py` (chính xác và đồng bộ hơn so với note thủ công vào file markdown).
+- **General tasks:** Đọc và lưu task trực tiếp trên Database thông qua script `E:\.agents\Cloud\agent_scripts\db_tasks.py` (chính xác và đồng bộ hơn so với note thủ công vào file markdown).
 
 ### Daily Reporting
 - **Sources:** Toàn bộ dữ liệu đọc từ Cloud Database (bao gồm cả bảng system_updates thay cho file md).
@@ -38,4 +38,4 @@
 ### Email Handling
 - **Chủ động tra cứu:** Khi sếp yêu cầu gửi mail (vd: cho VistaX), tự động truy vấn Database (bảng `clients` hoặc file) để dò tìm địa chỉ email chính xác của người cần gửi (vd: anh Cường, chị Hòa...).
 - **Chủ động hỏi:** Nếu tin nhắn của sếp thiếu dữ kiện (nội dung cụ thể, người nhận), hãy chủ động đặt câu hỏi để sếp cung cấp đủ thông tin.
-- **Soạn & Gửi:** Dùng `email_handler.py draft` để cho sếp duyệt bản nháp. Sau khi sếp "OK", dùng `email_handler.py send` để hệ thống tự động gửi email THẬT đi.
+- **Soạn & Gửi:** Dùng `python E:\.agents\Cloud\agent_scripts\email_handler.py draft` để cho sếp duyệt bản nháp. Sau khi sếp "OK", dùng `python E:\.agents\Cloud\agent_scripts\email_handler.py send` để hệ thống tự động gửi email THẬT đi.

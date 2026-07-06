@@ -25,7 +25,9 @@ Write:
 Read:
 - E:\.agents\guidelines\roles\minh_thu_guideline.md
 Write:
-- Chạy `minh_thu_finance.py scan_mail` để nạp chi phí từ email (với việc nhập thủ công sẽ có script riêng sau). Nếu thiếu thông tin, tự động tạo Task cho Sếp bằng `db_tasks.py`.
+- **Quét email tự động (Cloud):** Chạy `E:\.agents\Cloud\agent_scripts\minh_thu_finance_cloud.py --scan_mail` để nạp chi phí. Bản Cloud này sẽ tự gọi API AI để phân tích khoản chi lạ.
+- **Quét email xử lý thủ công (Local):** Chạy `E:\.agents\scripts\minh_thu_finance_local.py --scan_mail`. Antigravity sẽ tự động đọc log trả về từ lệnh này và dùng tư duy để quyết định thông tin dự án/hạng mục thay cho API cứng.
+- **Nhập chi phí thủ công từ Chat (Local):** Khi sếp nhắn tin báo chi phí, tự bóc tách thông tin và chạy `E:\.agents\Cloud\agent_scripts\add_expense_local.py` với các tham số tương ứng. Nếu thiếu thông tin, hỏi lại sếp.
 
 ## Quotation / Báo giá
 Read:
@@ -37,7 +39,7 @@ Write:
 Read:
 - E:\.agents\guidelines\roles\minh_thu_guideline.md
 Write:
-- Chạy `minh_thu_finance.py generate_contract`. Script sẽ tự động lấy báo giá từ Cloud DB để chèn vào `.docx`.
+- Chạy `E:\.agents\Cloud\agent_scripts\minh_thu_finance_cloud.py generate_contract`. Script sẽ tự động lấy báo giá từ Cloud DB để chèn vào `.docx`.
 
 ## Creative Brief & Marketing / Sáng tạo & Fanpage
 Read:

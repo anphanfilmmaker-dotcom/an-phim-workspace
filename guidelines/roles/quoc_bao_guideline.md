@@ -17,7 +17,7 @@
 ---
 
 ## 2. QUOTATION SURVEY STEPS (ASK ONE QUESTION AT A TIME)
-* **Step 1:** Run `python e:\agent\dashboard\agent_scripts\quoc_bao_sales.py check_quotation --project_id [ID]`. If it exists, stop and report to the Director.
+* **Step 1:** Run `python E:\.agents\Cloud\agent_scripts\quoc_bao_sales.py check_quotation --project_id [ID]`. If it exists, stop and report to the Director.
 * **Step 2:** If it does not exist, send survey questions to the Director (click-select buttons).
 
 ### Survey Checkpoints:
@@ -28,9 +28,9 @@
 ---
 
 ## 3. CALCULATING & EXPORTING QUOTATION DRAFT
-1. **Calculate Pricing:** Use `python e:\agent\dashboard\agent_scripts\quoc_bao_sales.py calculate_pricing --survey_data "{...}"` to compute costs.
+1. **Calculate Pricing:** Use `python E:\.agents\Cloud\agent_scripts\quoc_bao_sales.py calculate_pricing --survey_data "{...}"` to compute costs.
 2. **Save Draft:** Once approved by the Director via chat, run:
-   `python e:\agent\dashboard\agent_scripts\quoc_bao_sales.py save_draft --project_id [ID] --draft_content "[Nội dung báo giá]"`
+   `python E:\.agents\Cloud\agent_scripts\quoc_bao_sales.py save_draft --project_id [ID] --draft_content "[Nội dung báo giá]"`
 3. **Submission & Contract Pipeline:**
    * This pushes the Quotation directly to the `documents` table on the Cloud.
    * Minh Thu (Legal) will automatically pull this draft from the DB when she generates the contract.

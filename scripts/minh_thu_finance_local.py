@@ -10,6 +10,11 @@ from dotenv import load_dotenv
 
 sys.path.append(r"E:\.agents\Cloud\shared\core")
 from db_connection import execute_query
+try:
+    from docxtpl import DocxTemplate
+except ImportError:
+    pass
+
 
 # Set terminal output to UTF-8
 if sys.platform.startswith('win'):
@@ -258,10 +263,66 @@ def scan_mail():
     }
     return output
 
+def generate_contract(project_id, doc_type):
+    # Lấy thông tin dự án
+    proj = execute_query("SELECT name, client FROM projects WHERE id = %s", (project_id,), fetch=True)
+    if not proj:
+        return {"status": "error", "message": f"Khong tim thay du an {project_id}"}
+    project_name = proj[0]['name']
+    client_name = proj[0]['client']
+
+    # Lấy draft báo giá từ bảng documents
+    doc = execute_query("SELECT content FROM documents WHERE project = %s ORDER BY id DESC LIMIT 1", (project_id,), fetch=True)
+    if not doc or not doc[0].get('content'):
+        return {"status": "error", "message": "Khong tim thay ban nhap (Draft) nao trong bang documents"}
+    
+    draft_content = doc[0]['content']
+
+    # Đường dẫn
+    template_dir = r"g:\My Drive\[ANPHIM] MASTER PLANN\03_LEGAL\TEMPLATES"
+    if doc_type.upper() == "QUOTE":
+        template_path = os.path.join(template_dir, "00. Bao_Gia_Mau.docx")
+        prefix = "BaoGia"
+    else:
+        template_path = os.path.join(template_dir, "01. Hop_Dong_Dich_Vu.docx")
+        prefix = "HopDong"
+        
+    out_dir = rf"g:\My Drive\[ANPHIM] MASTER PLANN\02_PROJECTS\{project_name}\documents"
+    os.makedirs(out_dir, exist_ok=True)
+    
+    out_filename = f"{prefix}_{project_name}_{datetime.datetime.now().strftime('%Y%m%d')}.docx"
+    out_path = os.path.join(out_dir, out_filename)
+
+    try:
+        from docxtpl import DocxTemplate
+        doc = DocxTemplate(template_path)
+        context = {
+            "TEN_DU_AN": project_name,
+            "KHACH_HANG": client_name,
+            "NOI_DUNG_BAO_GIA": draft_content,
+            "NGAY_THANG": datetime.datetime.now().strftime("%d/%m/%Y")
+        }
+        doc.render(context)
+        doc.save(out_path)
+        
+        # Cập nhật projectdocuments
+        execute_query("""
+            INSERT INTO projectdocuments (projectid, projectname, quote, quote_link) 
+            VALUES (%s, %s, %s, %s) 
+            ON CONFLICT (projectid) DO UPDATE SET quote = EXCLUDED.quote, quote_link = EXCLUDED.quote_link
+        """, (project_id, project_name, True, out_path))
+        
+        return {"status": "success", "message": f"Da xuat file: {out_path}"}
+    except Exception as e:
+        return {"status": "error", "message": f"Loi sinh file Word: {e}"}
+
 def main():
     parser = argparse.ArgumentParser(description="Minh Thu (Finance Agent) Tool - LOCAL MODE")
     parser.add_argument("--scan_mail", action="store_true")
     parser.add_argument("--simulate_tx", action="store_true")
+    parser.add_argument("--generate_contract", action="store_true")
+    parser.add_argument("--project_id", type=str)
+    parser.add_argument("--doc_type", type=str, default="QUOTE")
     parser.add_argument("--date", type=str)
     parser.add_argument("--amount", type=int)
     parser.add_argument("--vendor", type=str)
@@ -280,6 +341,13 @@ def main():
 
     elif args.scan_mail:
         res = scan_mail()
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        
+    elif args.generate_contract:
+        if not args.project_id:
+            print(json.dumps({"status": "error", "message": "Missing --project_id"}))
+            return
+        res = generate_contract(args.project_id, args.doc_type)
         print(json.dumps(res, ensure_ascii=False, indent=2))
         
     else:

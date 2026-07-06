@@ -28,12 +28,12 @@
 ---
 
 ## 2. CONTENT QUEUE MANAGEMENT (DATABASE CLOUD)
-All scheduled posts are now managed via Database using the Python script `e:\agent\dashboard\agent_scripts\minh_dan_creative.py` instead of the old Excel file.
+All scheduled posts are now managed via Database using the Python script `E:\.agents\Cloud\agent_scripts\minh_dan_creative.py` instead of the old Excel file.
 
 1. **Scheduling New Posts:**
    * Instead of writing to `content_queue.xlsx`, Minh Đan must run the python script:
      ```bash
-     python e:\agent\dashboard\agent_scripts\minh_dan_creative.py add_post --date YYYY-MM-DD --topic "Topic ngắn gọn" --content "Nội dung đầy đủ" --image_path "path" --prompt "Prompt"
+     python E:\.agents\Cloud\agent_scripts\minh_dan_creative.py add_post --date YYYY-MM-DD --topic "Topic ngắn gọn" --content "Nội dung đầy đủ" --image_path "path" --prompt "Prompt"
      ```
    * The script will automatically split this into two parts:
      * **Schedule Table (Calendar UI):** Creates an event titled `Xây content facebook ngày [Date]`, Category: `AI agent`, Priority: `Trung bình`, Owner: `Minh Đan`, Project: empty, Notes: `[Topic]`. Once posted successfully, Minh Đan will update the Notes with the Post Link.

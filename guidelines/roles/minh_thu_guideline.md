@@ -20,26 +20,30 @@
 
 ---
 
-## 2. CONTRACT SURVEY STEPS
-* **Step 1:** Check if a Quotation Draft exists in the Database *(Lưu ý: Phần này sẽ làm việc lại sau khi chuẩn hóa xong luồng của Quốc Bảo)*.
-* **Step 2:** Read Company Profile from the `knowledge_base` table in Database and the approved Quotation to cross-reference details.
-* **Step 3:** Send confirmation questions to the Director (via Trâm Anh) sequentially.
+## 2. CONTRACT SURVEY STEPS (NEW WORKFLOW)
+* **Step 1 (Auto-Scan):** Analyze the chat context to get the project name/ID. Run `python E:\.agents\scripts\sync_quotation_db.py [PROJECT_ID] "[PROJECT_NAME]"` to extract quotation data. This ensures we get the data from Database (if Quoc Bao generated it) or from reading the Excel file and auto-syncing it to Database (if the Director made the file manually).
+* **Step 2 (Conditional Survey):** If the Excel file is missing or lacks information, or if there is a discrepancy with the Database/chat, use the `ask_question` tool to confirm with the Director. If the script and chat context provide all necessary data (e.g. Director explicitly states "thanh toán 1 lần 100%"), SKIP the survey and proceed to Step 3.
 
 ### Survey Checkpoints:
-Gather the following confirmations from the Director:
-1. **Client & Service Info:** Cite info from Database.
-2. **Contract Value & Payment Stages:** Propose a payment plan based on value.
-   - < 30M VND: 1 stage.
-   - 30M - 100M VND: 2 stages.
-   - > 100M VND: 3 stages.
+Gather the following confirmations from the Director. Design the options to be clickable buttons (sử dụng tool ask_question), and always include a manual text entry option for custom modifications:
+1. **Client & Service Info:** Cite info from Database. Ask if it is correct or needs changes.
+2. **Contract Value & Payment Stages:** Propose a payment plan based on value:
+   - If the Director provides a "before tax" (chưa thuế) value, you must ask whether to apply 8% or 10% VAT before calculating the total.
+   - < 30M VND: 1 stage (100% after completion or 100% upfront). If the contract requires 100% upfront payment, completely remove the "Stage 2" (Đợt 2) clause and any subsequent stages; do NOT just set the amount to 0.
+   - 30M - 100M VND: 2 stages (50% Deposit, 50% Final).
+   - > 100M VND: 3 stages (50% Deposit, 40% Mid, 10% Final).
+   Ask the Director to confirm or adjust the proposed stages.
 
 ---
 
 ## 3. LEGAL PAPERWORK PROCESS
 1. **Drafting Service Contract (HĐDV):**
-   * Use the Cloud Script: `python E:\.agents\Cloud\agent_scripts\minh_thu_finance_cloud.py generate_contract --project_id [ID]`
-   * The script will pull the approved `Quotation_Draft` from the Database and automatically generate the `.docx` file using the company template, then save it to the correct project folder in Drive.
-   * **[QUAN TRỌNG]:** Tạo file giấy tờ trên Drive xong, bắt buộc phải update lại Database: đánh dấu `true` ở cột tình trạng giấy tờ của dự án đó, đồng thời thêm link của file giấy tờ vào đúng hàng đúng cột.
+   * **Bản Local (Antigravity xử lý):** Sử dụng thông tin từ Step 1 & 2 để chạy script `python E:\.agents\scripts\minh_thu_finance_local.py --generate_contract --project_id [ID] --amount [AMOUNT] --note "[PAYMENT TERMS & SERVICE]"` để xuất thẳng file `.docx` vào thư mục dự án trên ổ G:.
+   * **Bản Cloud:** `python E:\.agents\Cloud\agent_scripts\minh_thu_finance_cloud.py generate_contract --project_id [ID]`
+   * **[QUAN TRỌNG]:** Tạo file giấy tờ trên Drive xong, bắt buộc phải dùng **Composio** để lấy Link Share Web, sau đó update Database: đánh dấu `True` cả 2 cột `quote` và `contract`, nhét link vào `contract_link`, và chép toàn bộ nội dung hạng mục vào bảng `Project_SOW`.
+2. **Payments & Incomes (Dòng tiền vào):**
+   * Khi Trâm Anh (PM) nhận được tin nhắn sếp báo có khoản thanh toán vào, Trâm Anh sẽ giao task cho Minh Thư.
+   * Minh Thư bắt buộc phải nhận số tiền đó, **chia cho 1.08 để trừ đi 8% VAT**, sau đó mới ghi số tiền Net vào bảng `incomes` (Dùng script `minh_thu_finance_local.py` hoặc Cloud tương ứng). Đồng thời tick xanh tiến độ (VD: `vatr1 = True`) trong bảng `projectdocuments`.
 2. **Payments & Approvals:**
    * Log actual payment progression on the Database.
 
@@ -54,10 +58,17 @@ Gather the following confirmations from the Director:
   3. If a vendor/category is clear, it's saved straight to DB.
   4. **IF MISSING INFO:** The expense is STILL saved (since money left the bank), but categorized as `Chưa phân loại`. Simultaneously, the script generates an Action/Task for the CEO to fill in later.
 
+* **Process (Email Scanning - Local / Thủ công khi sếp yêu cầu):**
+  - Khi sếp ra lệnh quét mail trên chat, Antigravity chạy lệnh:
+    `python E:\.agents\scripts\minh_thu_finance_local.py --scan_mail`
+  - Script sẽ trả về log các giao dịch, các khoản đã có trong bảng `payees` sẽ tự động được lưu. Các khoản `pending_ai` (chưa biết gán vào đâu) sẽ được in ra.
+  - Antigravity đọc log và BẮT BUỘC phải chat hỏi lại sếp thông tin của các khoản `pending_ai` đó, không được tự ý gán bừa.
+
 * **Process (Manual Chat Input - Local):**
-  - Khi sếp chat trực tiếp để báo chi phí thủ công, Antigravity phải tự động trích xuất thông tin (số tiền, dự án, hạng mục, nhà cung cấp, phương thức, ghi chú).
-  - Nếu thiếu thông tin quan trọng, hỏi lại sếp.
-  - Khi đã đủ, Antigravity tự động chạy lệnh Local để lưu vào DB:
+  - Khi sếp chat trực tiếp để báo chi phí thủ công, Antigravity BẮT BUỘC phải dùng tư duy để trích xuất thông tin (số tiền, nhà cung cấp, phương thức, ghi chú).
+  - **TRƯỚC KHI HỎI SẾP:** Antigravity PHẢI chạy lệnh SQL để query bảng `payees` (kiểm tra theo cột `vendor` và `alias`) để tự động điền `project` và `category` mặc định nếu có.
+  - Nếu query không có dữ liệu và vẫn thiếu thông tin quan trọng (Dự án, Hạng mục), lúc này mới được phép hỏi lại sếp.
+  - Khi đã đủ thông tin, Antigravity tự động chạy lệnh Local để lưu vào DB:
     `python E:\.agents\Cloud\agent_scripts\add_expense_local.py --amount [AMOUNT] --project "[PROJECT]" --category "[CATEGORY]" --vendor "[VENDOR]" --method "[METHOD]" --note "[NOTE]"`
 
 ---

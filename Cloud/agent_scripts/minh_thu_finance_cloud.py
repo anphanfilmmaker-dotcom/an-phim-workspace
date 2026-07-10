@@ -43,7 +43,7 @@ def extract_raw_transaction(text, email_from):
         try: amount = float(amount_str)
         except ValueError: pass
     else:
-        amount_match = re.search(r'(Số tiền giao dịch|SotienghiCO|SotienghiNO|Amount|Số tiền trích nợ:|Số tiền ghi có:|Khoản thanh toán|Số tiền)\s*([\+\-])?\s*([0-9.,]+)', text_clean, re.IGNORECASE)
+        amount_match = re.search(r'(Số tiền giao dịch|SotienghiCO|SotienghiNO|Amount|Số tiền trích nợ:|Số tiền ghi có:|Khoản thanh toán|Số tiền)(?:[\s\w]*Amount)?\s*([\+\-])?\s*([0-9.,]+)', text_clean, re.IGNORECASE)
         if amount_match:
             if amount_match.group(2) == '-' or "sotienghino" in amount_match.group(1).lower() or "trích nợ" in amount_match.group(1).lower():
                 is_expense = True
@@ -101,7 +101,7 @@ def extract_raw_transaction(text, email_from):
                 vendor = momo_vendor_match.group(1).strip()
 
     if not vendor:
-        if "vpb.neo" in email_from: vendor = "VPBank"
+        if "vpb.neo" in email_from or "vpbankonline" in email_from: vendor = "VPBank"
         elif "momo" in email_from: vendor = "MoMo"
         elif "canva" in email_from.lower(): vendor = "Canva"
 
@@ -145,10 +145,22 @@ def get_active_projects():
     res = execute_query("SELECT id, name, client FROM projects WHERE status != 'Hoàn thành'", fetch=True)
     return res if res else []
 
+def normalize_text(text):
+    if not text: return ""
+    import unicodedata
+    return unicodedata.normalize('NFD', text).encode('ascii', 'ignore').decode('utf-8').strip().lower()
+
 def get_payees():
     """Fetch known payees from DB"""
-    res = execute_query("SELECT vendor, default_category, default_project, default_method, ai_metadata FROM payees", fetch=True)
-    return {p['vendor'].lower(): p for p in res} if res else {}
+    res = execute_query("SELECT vendor, alias, default_category, default_project, default_method, ai_metadata FROM payees", fetch=True)
+    if not res: return {}
+    payees_map = {}
+    for p in res:
+        payees_map[normalize_text(p['vendor'])] = p
+        if p.get('alias'):
+            for al in p['alias'].split(','):
+                payees_map[normalize_text(al)] = p
+    return payees_map
 
 def ai_deduce_expense(vendor, amount, note, active_projects):
     """Uses Gemini API to deduce project and category based on context."""
@@ -195,7 +207,7 @@ def ai_deduce_expense(vendor, amount, note, active_projects):
         return None
 
 def process_transaction(date, amount, vendor, note, payees_map, active_projects, trans_type="expense"):
-    v_lower = vendor.lower() if vendor else ""
+    v_lower = normalize_text(vendor)
     project = "Không rõ"
     category = "Khác"
     need_task = True
@@ -206,8 +218,18 @@ def process_transaction(date, amount, vendor, note, payees_map, active_projects,
         project = "Không rõ"
     else:
         # 1. Trực tiếp từ bảng Payee
+        matched_p = None
         if v_lower in payees_map:
-            p_info = payees_map[v_lower]
+            matched_p = payees_map[v_lower]
+        else:
+            for alias_key, p_info in payees_map.items():
+                if len(alias_key) >= 3 and alias_key in v_lower:
+                    matched_p = p_info
+                    break
+                    
+        if matched_p:
+            p_info = matched_p
+            vendor = p_info.get("vendor", vendor)
             category = p_info.get("default_category", "Khác")
             project = p_info.get("default_project", "Không rõ")
             need_task = False
@@ -232,16 +254,23 @@ def process_transaction(date, amount, vendor, note, payees_map, active_projects,
                     category = ai_result.get("category", "Chưa phân loại")
                     project = "Không rõ"
 
-    # Luôn ghi sổ expense
+    # Ghi sổ
     uid_str = f"{date}_{vendor}_{amount}".encode('utf-8')
-    t_prefix = "inc_" if trans_type == "income" else "exp_"
-    t_id = t_prefix + hashlib.md5(uid_str).hexdigest()[:12]
-    
-    execute_query("""
-        INSERT INTO expenseTransactions (id, date, vendor, amount, project, category, description)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (id) DO NOTHING
-    """, (t_id, date, vendor, amount, project, category, note))
+    if trans_type == "income":
+        t_id = "inc_" + hashlib.md5(uid_str).hexdigest()[:12]
+        net_amount = int(amount / 1.08)
+        execute_query("""
+            INSERT INTO incomes (id, date, project, projectid, amount, notes)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (id) DO NOTHING
+        """, (t_id, date, project, None, net_amount, note))
+    else:
+        t_id = "exp_" + hashlib.md5(uid_str).hexdigest()[:12]
+        execute_query("""
+            INSERT INTO expenseTransactions (id, date, vendor, amount, project, category, description)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (id) DO NOTHING
+        """, (t_id, date, vendor, amount, project, category, note))
     
     # Tạo task nếu thiếu thông tin
     if need_task:
@@ -268,10 +297,10 @@ def scan_mail():
     except Exception as e:
         return {"status": "error", "message": f"Lỗi khởi tạo Composio: {e}"}
 
-    gmail_query = "(from:vpb.neo@vpbank.com.vn OR from:no-reply@momo.vn) -label:Finance_Checked"
+    gmail_query = "(from:vpb.neo@vpbank.com.vn OR from:vpbankonline@vpb.com.vn OR from:no-reply@momo.vn) -label:Finance_Checked"
     emails = []
     try:
-        res = client.tools.execute(slug="gmail_fetch_emails", arguments={"q": gmail_query, "maxResults": 20}, user_id="default_user", dangerously_skip_version_check=True)
+        res = client.tools.execute(slug="gmail_fetch_emails", arguments={"q": gmail_query, "maxResults": 50}, user_id="default_user", dangerously_skip_version_check=True)
         if isinstance(res, dict) and "data" in res:
             emails = res.get("data", [])
             if isinstance(emails, dict) and "messages" in emails: emails = emails["messages"]

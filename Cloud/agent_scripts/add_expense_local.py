@@ -31,17 +31,30 @@ def main():
         print(f"Warning: Khong tim thay du an '{args.project}' trong database. Van luu voi ID = Null.")
         actual_project_name = args.project
 
-    eid = "exp_" + uuid.uuid4().hex[:12]
+    import hashlib
+    uid_str = f"{date_str}_{args.vendor}_{args.amount}".encode('utf-8')
+    eid = "exp_" + hashlib.md5(uid_str).hexdigest()[:12]
 
     query = """
         INSERT INTO expenseTransactions
         (id, date, vendor, amount, project, projectId, category, paymentMethod, description)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (id) DO NOTHING
     """
     params = (eid, date_str, args.vendor, args.amount, actual_project_name, project_id, args.category, args.method, args.note)
     
     if execute_query(query, params, fetch=False):
         print(f"THANH CONG: Da luu chi phi {args.amount:,} VND cho '{actual_project_name}'.")
+        # Auto-learn payee
+        payee_query = """
+            INSERT INTO payees (vendor, default_category, default_project, default_method)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (vendor) DO UPDATE SET 
+                default_category = EXCLUDED.default_category,
+                default_project = EXCLUDED.default_project,
+                default_method = EXCLUDED.default_method
+        """
+        execute_query(payee_query, (args.vendor, args.category, actual_project_name, args.method), fetch=False)
     else:
         print("LOI: Khong the luu chi phi vao database.")
 

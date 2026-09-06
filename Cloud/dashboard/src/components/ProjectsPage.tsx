@@ -1152,8 +1152,12 @@ export default function ProjectsPage({
                   setIsUploading(true);
                   try {
                     const img = new Image();
-                    img.src = uploadPreview;
-                    await new Promise((resolve) => { img.onload = resolve; });
+                    await new Promise((resolve, reject) => {
+                      img.onload = () => resolve(img);
+                      img.onerror = (e) => reject(new Error("Không thể tải ảnh để crop"));
+                      img.src = uploadPreview;
+                      if (img.complete) resolve(img);
+                    });
 
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
@@ -1187,7 +1191,7 @@ export default function ProjectsPage({
                       );
                     }
 
-                    const croppedWebpBase64 = canvas.toDataURL('image/webp', 0.8);
+                    const croppedWebpBase64 = canvas.toDataURL('image/webp', 0.85);
 
                     const token = localStorage.getItem('anphim_auth_token');
                     // Đổi đuôi file thành .webp vì đã convert
@@ -1200,6 +1204,18 @@ export default function ProjectsPage({
                       },
                       body: JSON.stringify({ filename: newFilename, base64: croppedWebpBase64 })
                     });
+                    
+                    if (!res.ok) {
+                      const errText = await res.text();
+                      let errMsg = errText;
+                      try {
+                        const parsed = JSON.parse(errText);
+                        errMsg = parsed.error || errText;
+                      } catch (e) {}
+                      alert('Upload failed: ' + errMsg);
+                      return;
+                    }
+
                     const data = await res.json();
                     if (data.url) {
                       if (onUpdateProject && activeFocus) {
@@ -1211,10 +1227,11 @@ export default function ProjectsPage({
                       setZoom(1);
                       setCrop({ x: 0, y: 0 });
                     } else {
-                      alert('Upload failed: ' + data.error);
+                      alert('Upload failed: ' + (data.error || 'Unknown response'));
                     }
-                  } catch (err) {
-                    alert('Upload failed.');
+                  } catch (err: any) {
+                    console.error("Upload error:", err);
+                    alert('Upload failed: ' + (err.message || String(err)));
                   } finally {
                     setIsUploading(false);
                   }

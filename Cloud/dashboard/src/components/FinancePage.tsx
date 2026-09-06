@@ -368,15 +368,46 @@ export default function FinancePage({
   }, [rawExpenses]);
 
   const availableProjects = React.useMemo(() => {
+    const projectStatusMap = new Map<string, string>();
+    db.projects.forEach(p => projectStatusMap.set(p.name, p.status));
+
     const pList = new Set<string>();
     db.projects.forEach(p => pList.add(p.name));
     pList.add("Cá nhân");
     pList.add("Công ty");
-    // also add any from raw expenses just in case
     rawExpenses.forEach(e => {
       if (e.project) pList.add(e.project);
     });
-    return Array.from(pList).sort();
+
+    const activeList: string[] = [];
+    const completedList: string[] = [];
+
+    Array.from(pList).forEach(pName => {
+      const status = projectStatusMap.get(pName);
+      if (status === "Hoàn thành") {
+        completedList.push(pName);
+      } else {
+        activeList.push(pName);
+      }
+    });
+
+    // Sort active: System projects first (Cá nhân, Công ty), then alphabetically
+    activeList.sort((a, b) => {
+      const isSystemA = a === "Cá nhân" || a === "Công ty";
+      const isSystemB = b === "Cá nhân" || b === "Công ty";
+      if (isSystemA && !isSystemB) return -1;
+      if (!isSystemA && isSystemB) return 1;
+      return a.localeCompare(b, 'vi');
+    });
+
+    // Sort completed alphabetically
+    completedList.sort((a, b) => a.localeCompare(b, 'vi'));
+
+    return {
+      all: [...activeList, ...completedList],
+      active: activeList,
+      completed: completedList
+    };
   }, [db.projects, rawExpenses]);
 
   const filteredExpenses = React.useMemo(() => {
@@ -714,7 +745,14 @@ export default function FinancePage({
                 className="bg-[#171b21] border border-[#232a32] text-white text-[10px] font-mono rounded px-2 py-1 outline-none max-w-[150px] truncate"
               >
                 <option value="All">{lang === "en" ? "All Projects" : "Tất cả dự án"}</option>
-                {availableProjects.map(p => <option key={p} value={p}>{p}</option>)}
+                <optgroup label={lang === "en" ? "── Active / In Progress ──" : "── Đang hoạt động ──"}>
+                  {availableProjects.active.map(p => <option key={p} value={p}>{p}</option>)}
+                </optgroup>
+                {availableProjects.completed.length > 0 && (
+                  <optgroup label={lang === "en" ? "── Completed Projects ──" : "── Đã hoàn thành ──"}>
+                    {availableProjects.completed.map(p => <option key={p} value={p}>{p}</option>)}
+                  </optgroup>
+                )}
               </select>
 
               <select

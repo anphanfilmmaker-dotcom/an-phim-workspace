@@ -25,6 +25,14 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], on
   const [isAllDay, setIsAllDay] = useState(false);
   const [reminder, setReminder] = useState('15 phút');
 
+  const { activeProjects, completedProjects } = React.useMemo(() => {
+    const active = projects.filter(p => p.projectType !== 'Internal' && p.status !== 'Hoàn thành');
+    const completed = projects.filter(p => p.projectType !== 'Internal' && p.status === 'Hoàn thành');
+    active.sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+    completed.sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+    return { activeProjects: active, completedProjects: completed };
+  }, [projects]);
+
   useEffect(() => {
     if (isOpen) {
       if (initialEvent) {
@@ -258,11 +266,18 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], on
                   className={`${selectClass} pl-2.5`}
                 >
                   <option value="">{lang === 'en' ? 'Select (optional)' : 'Chọn (tùy chọn)'}</option>
-                  {projects.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                  <option value="Galaxy Corp TVC">Galaxy Corp TVC</option>
-                  <option value="Video CT1 - The Mar">Video CT1 - The Mar</option>
+                  <optgroup label={lang === 'en' ? '── Active / In Progress ──' : '── Đang hoạt động ──'}>
+                    {activeProjects.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </optgroup>
+                  {completedProjects.length > 0 && (
+                    <optgroup label={lang === 'en' ? '── Completed Projects ──' : '── Đã hoàn thành ──'}>
+                      {completedProjects.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
                 <ChevronDown className="w-3.5 h-3.5 text-[#8B949E] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>

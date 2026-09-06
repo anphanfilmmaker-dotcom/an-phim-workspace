@@ -20,16 +20,43 @@ import {
   Wallet, Percent, Download, Calendar, Search, SlidersHorizontal, ChevronDown, CheckCircle2, AlertCircle, CircleDashed
 } from "lucide-react";
 
-const CATEGORY_COLORS: Record<string, string> = {
-  "Personal": "bg-emerald-500",
-  "Marketing": "bg-purple-500",
-  "Freelancer": "bg-pink-500",
-  "AI Tools": "bg-blue-500",
-  "Taxe/Fees": "bg-rose-500",
-  "Office/Admin": "bg-cyan-500",
-  "Sales": "bg-orange-500",
-  "Others": "bg-neutral-500",
+export interface CategoryConfig {
+  bg: string;
+  text: string;
+  tagBg: string;
+  border: string;
+  hex: string;
+}
+
+export const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
+  "AI tools":        { bg: "bg-sky-500",     text: "text-sky-400",     tagBg: "bg-sky-950/40",     border: "border-sky-800/40",     hex: "#0ea5e9" },
+  "Freelancer":      { bg: "bg-pink-500",    text: "text-pink-400",    tagBg: "bg-pink-950/40",    border: "border-pink-800/40",    hex: "#ec4899" },
+  "Food / Meeting":  { bg: "bg-amber-500",   text: "text-amber-400",   tagBg: "bg-amber-950/40",   border: "border-amber-800/40",   hex: "#f59e0b" },
+  "Shopping":        { bg: "bg-orange-500",  text: "text-orange-400",  tagBg: "bg-orange-950/40",  border: "border-orange-800/40",  hex: "#f97316" },
+  "Personal":        { bg: "bg-emerald-500", text: "text-emerald-400", tagBg: "bg-emerald-950/40", border: "border-emerald-800/40", hex: "#10b981" },
+  "Gia đình & Định kỳ": { bg: "bg-cyan-500", text: "text-cyan-400",    tagBg: "bg-cyan-950/40",    border: "border-cyan-800/40",    hex: "#06b6d4" },
+  "Health Care":     { bg: "bg-teal-400",    text: "text-teal-300",    tagBg: "bg-teal-950/40",    border: "border-teal-800/40",    hex: "#2dd4bf" },
+  "Marketing":       { bg: "bg-purple-500",  text: "text-purple-400",  tagBg: "bg-purple-950/40",  border: "border-purple-800/40",  hex: "#a855f7" },
+  "Sales":           { bg: "bg-yellow-400",  text: "text-yellow-400",  tagBg: "bg-yellow-950/40",  border: "border-yellow-800/40",  hex: "#facc15" },
+  "Software / SaaS": { bg: "bg-indigo-500",  text: "text-indigo-400",  tagBg: "bg-indigo-950/40",  border: "border-indigo-800/40",  hex: "#6366f1" },
+  "Vay / Nợ":        { bg: "bg-red-500",     text: "text-red-400",     tagBg: "bg-red-950/40",     border: "border-red-800/40",     hex: "#ef4444" },
+  "Tax / Fees":      { bg: "bg-rose-500",    text: "text-rose-400",    tagBg: "bg-rose-950/40",    border: "border-rose-800/40",    hex: "#f43f5e" },
+  "Office / Admin":  { bg: "bg-blue-600",    text: "text-blue-400",    tagBg: "bg-blue-950/40",    border: "border-blue-800/40",    hex: "#2563eb" },
+  "Other":           { bg: "bg-slate-400",   text: "text-slate-300",   tagBg: "bg-slate-900/50",   border: "border-slate-700/40",   hex: "#94a3b8" },
 };
+
+export const getCategoryStyles = (cat: string): CategoryConfig => {
+  if (CATEGORY_CONFIG[cat]) return CATEGORY_CONFIG[cat];
+  const lower = (cat || "").toLowerCase().replace(/\s+/g, '');
+  for (const [key, cfg] of Object.entries(CATEGORY_CONFIG)) {
+    if (key.toLowerCase().replace(/\s+/g, '') === lower) return cfg;
+  }
+  return { bg: "bg-slate-500", text: "text-slate-400", tagBg: "bg-slate-900/40", border: "border-slate-700/40", hex: "#64748b" };
+};
+
+const CATEGORY_COLORS: Record<string, string> = new Proxy({}, {
+  get: (_, prop: string) => getCategoryStyles(prop).bg
+});
 import { translations } from "../translations";
 
 interface FinancePageProps {
@@ -202,7 +229,7 @@ export default function FinancePage({
     const projectExpenses = (db.expenseTransactions || [])
       .filter(e => e.project === p.name)
       .reduce((s, e) => s + (Number(e.amount) || 0), 0);
-    return sum + (p.received * 0.92 - projectExpenses);
+    return sum + (Math.round(p.received / 1.08) - projectExpenses);
   }, 0);
 
   const receivablesList = db.projects
@@ -372,14 +399,19 @@ export default function FinancePage({
     });
 
     return Object.keys(categoryTotals).map((cat) => {
+      const styles = getCategoryStyles(cat);
       return {
         category: cat,
         amount: categoryTotals[cat],
         percentage: totalAmt > 0 ? Math.round((categoryTotals[cat] / totalAmt) * 100) : 0,
-        color: CATEGORY_COLORS[cat] || "bg-neutral-500"
+        color: styles.bg,
+        hex: styles.hex,
+        text: styles.text,
+        tagBg: styles.tagBg,
+        border: styles.border
       };
     }).sort((a, b) => b.amount - a.amount);
-  }, [filteredExpenses, CATEGORY_COLORS]);
+  }, [filteredExpenses]);
 
   const pieTotalExpense = pieExpenses.reduce((sum, e) => sum + e.amount, 0);
 
@@ -706,9 +738,7 @@ export default function FinancePage({
 
             <div className="flex-1 min-h-[400px] max-h-[500px] overflow-y-auto pr-4">
               {filteredExpenses.map((exp) => {
-                const catColorRaw = CATEGORY_COLORS[exp.category] || 'bg-neutral-500';
-                const tagTextClass = catColorRaw.replace('bg-', 'text-').replace('-500', '-400');
-                const tagBgClass = catColorRaw.replace('bg-', 'bg-').replace('-500', '-950') + '/40';
+                const catStyle = getCategoryStyles(exp.category);
 
                 const getPaymentMethodColor = (method: string) => {
                   const m = method.toLowerCase();
@@ -717,6 +747,15 @@ export default function FinancePage({
                   if (m.includes('cash') || m.includes('tiền mặt')) return 'bg-blue-950/40 text-blue-400';
                   if (m.includes('credit') || m.includes('thẻ')) return 'bg-orange-950/40 text-orange-400';
                   return 'bg-neutral-800 text-neutral-400';
+                };
+
+                const getProjectColor = (projName?: string) => {
+                  if (!projName) return 'bg-[#232a32] text-neutral-400 border border-neutral-700/40';
+                  const lower = projName.toLowerCase();
+                  if (lower.includes('công ty')) return 'bg-blue-950/40 text-blue-300 border border-blue-800/40';
+                  if (lower.includes('cá nhân')) return 'bg-purple-950/40 text-purple-300 border border-purple-800/40';
+                  if (lower.includes('chung')) return 'bg-[#232a32] text-neutral-400 border border-neutral-700/40';
+                  return 'bg-emerald-950/40 text-emerald-300 border border-emerald-800/40';
                 };
 
                 return (
@@ -734,8 +773,10 @@ export default function FinancePage({
                               {exp.paymentMethod}
                             </span>
                           )}
-                          <span className="bg-[#232a32] text-neutral-300 px-1 py-[1px] rounded uppercase truncate max-w-[80px]">{exp.project || 'Chung'}</span>
-                          <span className={`px-1 py-[1px] rounded uppercase ${tagTextClass} ${tagBgClass} truncate max-w-[80px]`}>
+                          <span className={`px-1 py-[1px] rounded uppercase truncate max-w-[90px] ${getProjectColor(exp.project)}`}>
+                            {exp.project || 'Chung'}
+                          </span>
+                          <span className={`px-1 py-[1px] rounded uppercase ${catStyle.text} ${catStyle.tagBg} border ${catStyle.border} truncate max-w-[90px]`}>
                             {exp.category}
                           </span>
                         </div>
@@ -798,18 +839,6 @@ export default function FinancePage({
                   const strokeDashoffset = 100 - cumulativePercent;
                   cumulativePercent += e.percentage;
 
-                  const tailwindColors: Record<string, string> = {
-                    "bg-emerald-500": "#10b981",
-                    "bg-amber-500": "#f59e0b",
-                    "bg-orange-500": "#f97316",
-                    "bg-indigo-500": "#6366f1",
-                    "bg-cyan-500": "#06b6d4",
-                    "bg-purple-500": "#a855f7",
-                    "bg-pink-500": "#ec4899",
-                    "bg-rose-500": "#f43f5e",
-                    "bg-blue-500": "#3b82f6"
-                  };
-
                   return (
                     <circle
                       key={e.category}
@@ -817,7 +846,7 @@ export default function FinancePage({
                       cy="18"
                       r="15.91549430918954"
                       fill="transparent"
-                      stroke={tailwindColors[e.color] || '#888'}
+                      stroke={e.hex}
                       strokeWidth="4"
                       strokeDasharray={strokeDasharray}
                       strokeDashoffset={strokeDashoffset}
@@ -837,16 +866,15 @@ export default function FinancePage({
 
           <div className="space-y-2 text-[10px] font-mono">
             {pieExpenses.map((e) => {
-              const textColorClass = e.color.replace('bg-', 'text-').replace('-500', '-400');
               return (
                 <div key={e.category} className="flex justify-between items-center border-b border-neutral-900 pb-1.5 leading-none">
                   <div className="flex items-center space-x-2">
-                    <span className={`w-2.5 h-2.5 rounded-full ${e.color}`} />
-                    <span className={`${textColorClass} font-bold`}>{translateCategory(e.category)}</span>
+                    <span className={`w-2.5 h-2.5 rounded-full ${e.color} shrink-0`} style={{ backgroundColor: e.hex }} />
+                    <span className={`${e.text} font-bold`}>{translateCategory(e.category)}</span>
                   </div>
                   <div className="space-x-3.5">
                     <span className="text-neutral-450">{formatVND(e.amount)}</span>
-                    <span className="font-bold" style={{ color: e.color }}>{e.percentage}%</span>
+                    <span className="font-bold" style={{ color: e.hex }}>{e.percentage}%</span>
                   </div>
                 </div>
               );

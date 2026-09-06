@@ -26,8 +26,7 @@ import {
   Check,
   X,
   Camera,
-  Upload,
-  Image
+  Upload
 } from "lucide-react";
 import { translations } from "../translations";
 
@@ -1151,7 +1150,7 @@ export default function ProjectsPage({
                   if (!uploadFile || !uploadPreview || !croppedAreaPixels) return;
                   setIsUploading(true);
                   try {
-                    const img = new Image();
+                    const img = new window.Image();
                     await new Promise((resolve, reject) => {
                       img.onload = () => resolve(img);
                       img.onerror = (e) => reject(new Error("Không thể tải ảnh để crop"));

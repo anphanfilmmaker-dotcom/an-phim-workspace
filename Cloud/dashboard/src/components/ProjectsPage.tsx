@@ -617,11 +617,10 @@ export default function ProjectsPage({
                     e.stopPropagation();
                     setIsUploadModalOpen(true);
                   }}
-                  className="absolute top-2.5 right-2.5 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center space-x-1.5 transition-all z-30 text-[11px] font-mono font-semibold shadow-lg shadow-black/50 border border-emerald-400/40 cursor-pointer"
-                  title="Tải lên / Đổi ảnh dự án"
+                  className="absolute top-2.5 right-2.5 p-1.5 bg-black/40 hover:bg-black/70 text-neutral-400 hover:text-white rounded-lg transition-all z-30 border border-white/10 hover:border-white/20 cursor-pointer backdrop-blur-sm"
+                  title={lang === "en" ? "Change Image" : "Đổi ảnh dự án"}
                 >
-                  <Camera className="w-3.5 h-3.5 text-white" />
-                  <span>{lang === "en" ? "Change Image" : "Đổi ảnh"}</span>
+                  <Camera className="w-4 h-4" />
                 </button>
 
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#121417] via-black/60 to-transparent p-4 flex flex-col justify-end pointer-events-none z-10">

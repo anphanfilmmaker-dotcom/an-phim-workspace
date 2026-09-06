@@ -32,7 +32,10 @@ import {
   Languages,
   ChevronLeft,
   ChevronRight,
-  Menu
+  Menu,
+  Check,
+  Loader2,
+  AlertCircle
 } from "lucide-react";
 import { translations } from "./translations";
 
@@ -42,7 +45,36 @@ export const apiFetch = async (url: string, options: RequestInit = {}) => {
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`);
   }
-  return fetch(url, { ...options, headers });
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 401 || res.status === 403) {
+    if (!url.includes('/api/login')) {
+      localStorage.removeItem('anphim_auth_token');
+      window.location.reload();
+    }
+  }
+  return res;
+};
+
+export const isMatchingTask = (eventTitle: string, eventDesc: string | undefined, actionTitle: string): boolean => {
+  const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9\u00C0-\u024F\u1EA0-\u1EF9]/gi, " ").replace(/\s+/g, " ").trim();
+  const eT = norm(eventTitle);
+  const aT = norm(actionTitle);
+  if (!eT || !aT) return false;
+  if (eT === aT) return true;
+  if (eT.includes(aT) || aT.includes(eT)) return true;
+  if (eventDesc) {
+    const eD = norm(eventDesc);
+    if (eD === aT || eD.includes(aT) || aT.includes(eD)) return true;
+  }
+  const eWords = eT.split(" ").filter(w => w.length > 1);
+  const aWords = aT.split(" ").filter(w => w.length > 1);
+  if (eWords.length > 0 && aWords.length > 0) {
+    const setA = new Set(aWords);
+    const common = eWords.filter(w => setA.has(w)).length;
+    const ratio = common / Math.min(eWords.length, aWords.length);
+    if (ratio >= 0.6) return true;
+  }
+  return false;
 };
 
 type PageId = "overview" | "projects" | "finance" | "agents" | "documents" | "schedule";
@@ -104,6 +136,39 @@ export default function App() {
     setStoredSheetData(newDb);
   };
 
+  interface SyncToast {
+    type: 'saving' | 'success' | 'error';
+    message: string;
+  }
+  const [syncToast, setSyncToast] = useState<SyncToast | null>(null);
+
+  const triggerSyncFeedback = async (
+    fetchPromise: Promise<Response>,
+    successMsg: string = "Đã đồng bộ vào Database",
+    errorMsg: string = "Lỗi đồng bộ vào Database"
+  ) => {
+    setSyncToast({ type: 'saving', message: 'Đang lưu vào Database...' });
+    try {
+      const res = await fetchPromise;
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Lỗi HTTP ${res.status}`);
+      }
+      setSyncToast({ type: 'success', message: `✓ ${successMsg}` });
+      setTimeout(() => {
+        setSyncToast(prev => prev?.message.includes(successMsg) ? null : prev);
+      }, 2500);
+      return res;
+    } catch (err: any) {
+      console.error("Sync error:", err);
+      setSyncToast({ type: 'error', message: `✕ ${errorMsg}: ${err.message || err}` });
+      setTimeout(() => {
+        setSyncToast(prev => prev?.type === 'error' ? null : prev);
+      }, 5000);
+      throw err;
+    }
+  };
+
   // Normalize a raw project from the API into a fully-typed Project object
   const normalizeProject = (p: any): import("./types").Project => {
     // milestones can come as string[] from DB or object[] from local state
@@ -127,7 +192,7 @@ export default function App() {
 
     return {
       id: String(p.id || ""),
-      name: p.name || p.projectName || "",
+      name: p.projectName || p.name || "",
       client: p.client || "N/A",
       status: p.status || "Chưa bắt đầu",
       budget: Number(p.budget) || 0,
@@ -158,12 +223,22 @@ export default function App() {
       })
       .then(data => {
         if (data && data.projects) {
+          const normalizedProjects = (data.projects || []).map(normalizeProject);
+          const projectLookup = new Map<string, string>();
+          normalizedProjects.forEach((p: any) => {
+            if (p.id) projectLookup.set(p.id.toLowerCase(), p.name);
+          });
+          projectLookup.set('proj-canhan', 'Cá nhân');
+          projectLookup.set('proj_canhan', 'Cá nhân');
+          projectLookup.set('proj-congty', 'Công ty');
+          projectLookup.set('proj_congty', 'Công ty');
+
           const safeDb: GoogleSheetDB = {
             ...db,
             ...data,
             dashboard: { ...(db.dashboard || {}), ...(data.dashboard || {}) },
             agentPerformance: { ...(db.agentPerformance || {}), ...(data.agentPerformance || {}) },
-            projects: (data.projects || []).map(normalizeProject),
+            projects: normalizedProjects,
             cashFlow: data.cashFlow || db.cashFlow,
             expenses: data.expenses || db.expenses,
             alerts: data.alerts || db.alerts,
@@ -184,12 +259,17 @@ export default function App() {
               vatR3Link: pd.vatR3Link || pd.vatr3_link || "",
               liquidationLink: pd.liquidationLink || pd.liquidation_link || ""
             })),
-            expenseTransactions: (data.expenseTransactions || db.expenseTransactions || []).map((exp: any) => ({
-              ...exp,
-              projectId: exp.projectId || exp.projectid || "",
-              paymentMethod: exp.paymentMethod || exp.paymentmethod || "",
-              amount: Number(exp.amount) || 0
-            })),
+            expenseTransactions: (data.expenseTransactions || db.expenseTransactions || []).map((exp: any) => {
+              const pid = (exp.projectId || exp.projectid || "").toLowerCase();
+              const resolvedProject = exp.project || projectLookup.get(pid) || (pid ? (pid.startsWith('proj_') ? pid : 'Chung') : 'Chung');
+              return {
+                ...exp,
+                projectId: exp.projectId || exp.projectid || "",
+                project: resolvedProject,
+                paymentMethod: exp.paymentMethod || exp.paymentmethod || "",
+                amount: Number(exp.amount) || 0
+              };
+            }),
             actions: data.actions || db.actions,
             agents: data.agents || db.agents,
             tasks: data.tasks || db.tasks,
@@ -278,6 +358,17 @@ export default function App() {
       const evt = currentAggSchedule.find(e => e.id === eventId);
       if (evt) {
         handleEditEvent({ ...evt, status: nextStatus === "Done" ? "done" : "todo" });
+        // Also sync any matching action in db.actions
+        const matchingAct = db.actions.find(a => isMatchingTask(evt.title, evt.description, a.title));
+        if (matchingAct && matchingAct.status !== nextStatus) {
+          const nextActions = db.actions.map(a => a.id === matchingAct.id ? { ...a, status: nextStatus } : a);
+          updateDbState({ ...db, actions: nextActions });
+          apiFetch(`/api/actions/${matchingAct.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: nextStatus })
+          }).catch(console.error);
+        }
       }
       return;
     }
@@ -289,13 +380,31 @@ export default function App() {
       return act;
     });
     updateDbState({ ...db, actions: nextActions });
+
+    // Check if this action has a matching schedule event for today and update that event too!
+    const targetAct = db.actions.find(a => a.id === actionId);
+    if (targetAct) {
+      const actualToday = new Date();
+      const todayStr = `${actualToday.getFullYear()}-${String(actualToday.getMonth() + 1).padStart(2, '0')}-${String(actualToday.getDate()).padStart(2, '0')}`;
+      const matchedEvt = (db.schedule || []).find(e => e.date === todayStr && isMatchingTask(e.title, e.description, targetAct.title));
+      if (matchedEvt) {
+        const nextEvtStatus = nextStatus === "Done" ? "done" : "todo";
+        if (matchedEvt.status !== nextEvtStatus) {
+          handleEditEvent({ ...matchedEvt, status: nextEvtStatus });
+        }
+      }
+    }
     
     // Sync to backend
-    apiFetch(`/api/actions/${actionId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: nextStatus })
-    }).catch(console.error);
+    triggerSyncFeedback(
+      apiFetch(`/api/actions/${actionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus })
+      }),
+      'Đã cập nhật công việc',
+      'Lỗi lưu công việc'
+    );
   };
 
   // Handler: Update private notes on film projects
@@ -309,11 +418,15 @@ export default function App() {
     updateDbState({ ...db, projects: nextProjects });
     
     // Sync to backend
-    apiFetch(`/api/projects/${projectId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ notes })
-    }).catch(err => console.error("Failed to sync project notes to DB", err));
+    triggerSyncFeedback(
+      apiFetch(`/api/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes })
+      }),
+      'Đã lưu ghi chú dự án',
+      'Lỗi lưu ghi chú'
+    );
   };
 
   // Handler: Update full project
@@ -327,11 +440,15 @@ export default function App() {
     updateDbState({ ...db, projects: nextProjects });
     
     // Sync to backend
-    apiFetch(`/api/projects/${updatedProj.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updatedProj)
-    }).catch(console.error);
+    triggerSyncFeedback(
+      apiFetch(`/api/projects/${updatedProj.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedProj)
+      }),
+      `Đã cập nhật dự án ${updatedProj.name}`,
+      `Lỗi cập nhật dự án`
+    );
   };
 
   // Handler: Add document from drag and drop uploader
@@ -342,11 +459,15 @@ export default function App() {
     });
     
     // Sync to backend
-    apiFetch(`/api/documents`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newDoc)
-    }).catch(console.error);
+    triggerSyncFeedback(
+      apiFetch(`/api/documents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newDoc)
+      }),
+      `Đã tải lên văn bản ${newDoc.name}`,
+      `Lỗi tải văn bản`
+    );
   };
 
   // Handler: Delete document
@@ -357,9 +478,13 @@ export default function App() {
     });
     
     // Sync to backend
-    apiFetch(`/api/documents/${docId}`, {
-      method: 'DELETE'
-    }).catch(console.error);
+    triggerSyncFeedback(
+      apiFetch(`/api/documents/${docId}`, {
+        method: 'DELETE'
+      }),
+      `Đã xóa văn bản`,
+      `Lỗi xóa văn bản`
+    );
   };
 
   // Handler: Sync legal doc state
@@ -374,11 +499,15 @@ export default function App() {
     updateDbState({ ...db, documents: nextDocs });
     
     // Sync to backend
-    apiFetch(`/api/documents/${docId}/status`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: nextStatus, isUrgent })
-    }).catch(console.error);
+    triggerSyncFeedback(
+      apiFetch(`/api/documents/${docId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus, isUrgent })
+      }),
+      `Đã đổi trạng thái văn bản`,
+      `Lỗi đổi trạng thái văn bản`
+    );
   };
 
   // Handler: Sync project document checklist state
@@ -386,27 +515,49 @@ export default function App() {
     if (!db.projectDocuments) return;
     
     let dbUpdatePayload: any = { [field]: value };
+    let projName = projectId;
     
     const nextDocs = db.projectDocuments.map((pd) => {
       if (pd.projectId === projectId) {
+        projName = pd.projectName || projectId;
         const nextPd = { ...pd, [field]: value };
-        const count = [nextPd.quote, nextPd.contract, nextPd.vatR1, nextPd.vatR2, nextPd.vatR3, nextPd.liquidation].filter(Boolean).length;
-        if (count === 6 && field !== 'overallStatus' && !nextPd.overallStatus) {
-          nextPd.overallStatus = "đã đủ";
-          dbUpdatePayload['overallStatus'] = "đã đủ";
+        const count = [
+          nextPd.quote, 
+          nextPd.contract, 
+          nextPd.vatR1, 
+          nextPd.vatR2, 
+          nextPd.vatR3, 
+          nextPd.liquidation
+        ].filter(Boolean).length;
+        
+        if (field === 'overallStatus') {
+          nextPd.overallStatus = value;
+          dbUpdatePayload['overallStatus'] = value;
+        } else if (count === 6) {
+          nextPd.overallStatus = "Đã đủ";
+          dbUpdatePayload['overallStatus'] = "Đã đủ";
+        } else if (count < 6 && nextPd.overallStatus === "Đã đủ") {
+          const fallback = count > 0 ? "Chờ đợt 2" : "Chưa có";
+          nextPd.overallStatus = fallback;
+          dbUpdatePayload['overallStatus'] = fallback;
         }
+        
         return nextPd;
       }
       return pd;
     });
     updateDbState({ ...db, projectDocuments: nextDocs });
     
-    // Sync to backend
-    apiFetch(`/api/projectdocuments/${projectId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dbUpdatePayload)
-    }).catch(err => console.error("Failed to sync project document state to DB", err));
+    // Sync to backend with user feedback
+    triggerSyncFeedback(
+      apiFetch(`/api/projectdocuments/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dbUpdatePayload)
+      }),
+      `Đã đồng bộ giấy tờ (${projName})`,
+      `Không thể lưu giấy tờ`
+    );
   };
 
   // Handler: Register brand new project
@@ -561,9 +712,27 @@ export default function App() {
         handleUpdateProject(newProj);
       }
     } else {
+      const nextSchedule = db.schedule.map(e => e.id === updatedEvent.id ? updatedEvent : e);
+      // Also sync matching action if any
+      const nextActions = (db.actions || []).map(act => {
+        if (isMatchingTask(updatedEvent.title, updatedEvent.description, act.title)) {
+          const actStatus = updatedEvent.status === 'done' ? 'Done' : 'Pending';
+          if (act.status !== actStatus) {
+            apiFetch(`/api/actions/${act.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: actStatus })
+            }).catch(console.error);
+            return { ...act, status: actStatus };
+          }
+        }
+        return act;
+      });
+
       updateDbState({
         ...db,
-        schedule: db.schedule.map(e => e.id === updatedEvent.id ? updatedEvent : e)
+        schedule: nextSchedule,
+        actions: nextActions
       });
       
       // Sync to backend
@@ -1013,6 +1182,12 @@ export default function App() {
           </div>
 
           <div className="flex items-center space-x-3">
+            {/* Cloud DB Connection Status Indicator */}
+            <div className="flex items-center space-x-1.5 px-2.5 py-1.5 bg-[#171b21] border border-[#2b333c] rounded-lg text-[11px] font-mono select-none" title="Kết nối trực tiếp PostgreSQL Supabase Cloud">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="text-neutral-400 hidden sm:inline">DB:</span>
+              <span className="text-emerald-400 font-medium">Real-time</span>
+            </div>
             
             {/* Language Toggle Button */}
             <button
@@ -1052,7 +1227,27 @@ export default function App() {
             const actualToday = new Date();
             const todayStr = `${actualToday.getFullYear()}-${String(actualToday.getMonth() + 1).padStart(2, '0')}-${String(actualToday.getDate()).padStart(2, '0')}`;
             const todaysEvents = aggregatedDb.schedule.filter(e => e.date === todayStr);
-            const mappedActionsFromEvents: import("./types").CEOAction[] = todaysEvents.map((e, idx) => ({
+
+            // Sync status between schedule events and existing db.actions
+            const syncedDbActions = (db.actions || []).map(act => {
+              const matchedEvt = todaysEvents.find(e => isMatchingTask(e.title, e.description, act.title));
+              if (matchedEvt) {
+                const isDone = act.status === 'Done' || matchedEvt.status === 'done';
+                return {
+                  ...act,
+                  status: (isDone ? 'Done' : 'Pending') as any,
+                  linkedEventId: matchedEvt.id,
+                };
+              }
+              return act;
+            });
+
+            // Only map schedule events that DO NOT match any existing db.actions
+            const unmappedEvents = todaysEvents.filter(e => 
+              !syncedDbActions.some(act => isMatchingTask(e.title, e.description, act.title))
+            );
+
+            const mappedActionsFromEvents: import("./types").CEOAction[] = unmappedEvents.map((e, idx) => ({
               id: `sync_evt_${e.id}`,
               priorityOrder: e.priority === 'high' ? 1 : 2,
               title: e.title,
@@ -1062,7 +1257,7 @@ export default function App() {
               status: e.status === 'done' ? "Done" : "Pending",
               category: e.category
             }));
-            const overviewDb = { ...db, actions: [...mappedActionsFromEvents, ...db.actions] };
+            const overviewDb = { ...db, actions: [...mappedActionsFromEvents, ...syncedDbActions] };
 
             return (
               <OverviewPage 
@@ -1142,6 +1337,24 @@ export default function App() {
         onSync={handleSpreadsheetSync}
         lang={lang}
       />
+
+      {/* Floating Real-time DB Sync Toast */}
+      {syncToast && (
+        <div 
+          className={`fixed bottom-6 right-6 z-50 flex items-center space-x-2.5 px-4 py-3 rounded-xl border shadow-2xl backdrop-blur-md transition-all duration-300 font-mono text-xs select-none ${
+            syncToast.type === 'saving' 
+              ? 'bg-[#121417]/95 border-amber-500/50 text-amber-300 shadow-amber-500/10' 
+              : syncToast.type === 'success'
+              ? 'bg-[#121417]/95 border-emerald-500/50 text-emerald-300 shadow-emerald-500/10'
+              : 'bg-[#121417]/95 border-rose-500/50 text-rose-300 shadow-rose-500/10'
+          }`}
+        >
+          {syncToast.type === 'saving' && <Loader2 className="w-4 h-4 animate-spin text-amber-400 shrink-0" />}
+          {syncToast.type === 'success' && <Check className="w-4 h-4 text-emerald-400 shrink-0" />}
+          {syncToast.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />}
+          <span className="font-sans font-medium">{syncToast.message}</span>
+        </div>
+      )}
 
     </div>
   );

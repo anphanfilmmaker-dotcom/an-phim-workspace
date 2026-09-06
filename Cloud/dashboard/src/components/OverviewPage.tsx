@@ -74,6 +74,9 @@ export default function OverviewPage({
       // If it is a mapped schedule event from today, keep it!
       if (a.id.startsWith("sync_evt_")) return true;
       
+      // If it was linked to today's schedule event, keep it!
+      if ((a as any).linkedEventId) return true;
+
       // If it was marked as completed today in local storage, keep it!
       if (completedTodayMap[a.id] === todayStr) return true;
 

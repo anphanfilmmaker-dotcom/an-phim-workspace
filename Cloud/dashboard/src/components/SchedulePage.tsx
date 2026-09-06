@@ -501,6 +501,7 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
         }}
         lang={lang}
         projects={db.projects}
+        agents={db.agents}
         initialDate={globalSelectedDateStr}
         initialEvent={isEditMode ? selectedEvent : undefined}
         onSubmit={(data) => {

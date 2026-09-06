@@ -717,14 +717,33 @@ export default function App() {
       const nextActions = (db.actions || []).map(act => {
         if (isMatchingTask(updatedEvent.title, updatedEvent.description, act.title)) {
           const actStatus = updatedEvent.status === 'done' ? 'Done' : 'Pending';
-          if (act.status !== actStatus) {
-            apiFetch(`/api/actions/${act.id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ status: actStatus })
-            }).catch(console.error);
-            return { ...act, status: actStatus };
-          }
+          const resolvedProjectName = updatedEvent.projectId
+            ? (db.projects.find(p => p.id === updatedEvent.projectId)?.name || act.project)
+            : act.project;
+          const assignedAgent = updatedEvent.agent || updatedEvent.owner || act.suggestedAgent;
+
+          const updatedActPayload = {
+            status: actStatus,
+            project: resolvedProjectName,
+            projectid: updatedEvent.projectId || act.projectid,
+            category: updatedEvent.category || act.category,
+            suggestedagent: assignedAgent
+          };
+
+          apiFetch(`/api/actions/${act.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedActPayload)
+          }).catch(console.error);
+
+          return { 
+            ...act, 
+            status: actStatus,
+            project: resolvedProjectName,
+            projectid: updatedEvent.projectId || act.projectid,
+            category: updatedEvent.category || act.category,
+            suggestedAgent: assignedAgent
+          };
         }
         return act;
       });
@@ -1228,15 +1247,22 @@ export default function App() {
             const todayStr = `${actualToday.getFullYear()}-${String(actualToday.getMonth() + 1).padStart(2, '0')}-${String(actualToday.getDate()).padStart(2, '0')}`;
             const todaysEvents = aggregatedDb.schedule.filter(e => e.date === todayStr);
 
-            // Sync status between schedule events and existing db.actions
+            // Sync status and metadata between schedule events and existing db.actions
             const syncedDbActions = (db.actions || []).map(act => {
               const matchedEvt = todaysEvents.find(e => isMatchingTask(e.title, e.description, act.title));
               if (matchedEvt) {
                 const isDone = act.status === 'Done' || matchedEvt.status === 'done';
+                const resolvedProjectName = matchedEvt.projectId
+                  ? (db.projects.find(p => p.id === matchedEvt.projectId)?.name || act.project)
+                  : act.project;
+
                 return {
                   ...act,
                   status: (isDone ? 'Done' : 'Pending') as any,
                   linkedEventId: matchedEvt.id,
+                  project: resolvedProjectName || act.project,
+                  category: (matchedEvt.category || act.category) as any,
+                  suggestedAgent: matchedEvt.agent || matchedEvt.owner || act.suggestedAgent,
                 };
               }
               return act;

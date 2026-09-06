@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar as CalendarIcon, Clock, ChevronDown, Flag, User, Bell } from 'lucide-react';
-import { Project } from '../types';
+import { Project, AIAgent } from '../types';
 
 interface NewEventModalProps {
   isOpen: boolean;
   onClose: () => void;
   lang: 'en' | 'vi';
   projects?: Project[];
+  agents?: AIAgent[];
   onSubmit: (eventData: any) => void;
   initialEvent?: any;
   initialDate?: string;
 }
 
-export default function NewEventModal({ isOpen, onClose, lang, projects = [], onSubmit, initialEvent, initialDate }: NewEventModalProps) {
+export default function NewEventModal({ isOpen, onClose, lang, projects = [], agents = [], onSubmit, initialEvent, initialDate }: NewEventModalProps) {
   const [eventName, setEventName] = useState('');
   const [date, setDate] = useState('2026-06-16');
   const [startTime, setStartTime] = useState('14:00');
@@ -25,12 +26,14 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], on
   const [isAllDay, setIsAllDay] = useState(false);
   const [reminder, setReminder] = useState('15 phút');
 
-  const { activeProjects, completedProjects } = React.useMemo(() => {
+  const { activeProjects, completedProjects, internalProjects } = React.useMemo(() => {
+    const internal = projects.filter(p => p.projectType === 'Internal');
     const active = projects.filter(p => p.projectType !== 'Internal' && p.status !== 'Hoàn thành');
     const completed = projects.filter(p => p.projectType !== 'Internal' && p.status === 'Hoàn thành');
     active.sort((a, b) => a.name.localeCompare(b.name, 'vi'));
     completed.sort((a, b) => a.name.localeCompare(b.name, 'vi'));
-    return { activeProjects: active, completedProjects: completed };
+    internal.sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+    return { activeProjects: active, completedProjects: completed, internalProjects: internal };
   }, [projects]);
 
   useEffect(() => {
@@ -42,7 +45,7 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], on
         setEndTime(initialEvent.endTime || '');
         setCategory(initialEvent.category || 'meeting');
         setPriority(initialEvent.priority || 'medium');
-        setOwner(initialEvent.owner || '');
+        setOwner(initialEvent.agent || initialEvent.owner || initialEvent.suggestedAgent || '');
         setProjectId(initialEvent.projectId || '');
         setDescription(initialEvent.description || '');
       } else {
@@ -69,7 +72,8 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], on
       endTime,
       category,
       priority,
-      owner,
+      owner: owner === 'An Phan' || owner === 'CEO' ? 'CEO' : owner,
+      agent: owner,
       projectId,
       description
     });
@@ -242,9 +246,17 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], on
                   className={selectClass}
                 >
                   <option value="">{lang === 'en' ? 'Select person' : 'Chọn người'}</option>
-                  <option value="An Phan">An Phan</option>
-                  <option value="Minh Đan">Minh Đan</option>
-                  <option value="Trâm Anh">Trâm Anh</option>
+                  <option value="CEO">An Phan (CEO)</option>
+                  <option value="Quốc Bảo">Quốc Bảo (Sales)</option>
+                  <option value="Trâm Anh">Trâm Anh (PM)</option>
+                  <option value="Minh Thư">Minh Thư (Kế toán)</option>
+                  <option value="Minh Đan">Minh Đan (Creative)</option>
+                  <option value="Chí Hải">Chí Hải (AI VFX)</option>
+                  {agents && agents.map(a => (
+                    !["An Phan", "CEO", "Quốc Bảo", "Trâm Anh", "Minh Thư", "Minh Đan", "Chí Hải"].includes(a.name) && (
+                      <option key={a.id} value={a.name}>{a.name}</option>
+                    )
+                  ))}
                 </select>
                 <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none w-[16px] h-[16px] rounded-full bg-[#1F2937] overflow-hidden flex items-center justify-center border border-[rgba(255,255,255,0.1)]">
                   {/* Mock avatar */}
@@ -266,6 +278,13 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], on
                   className={`${selectClass} pl-2.5`}
                 >
                   <option value="">{lang === 'en' ? 'Select (optional)' : 'Chọn (tùy chọn)'}</option>
+                  {internalProjects.length > 0 && (
+                    <optgroup label={lang === 'en' ? '── Internal / Company ──' : '── Nội bộ / Công ty ──'}>
+                      {internalProjects.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </optgroup>
+                  )}
                   <optgroup label={lang === 'en' ? '── Active / In Progress ──' : '── Đang hoạt động ──'}>
                     {activeProjects.map(p => (
                       <option key={p.id} value={p.id}>{p.name}</option>
@@ -274,7 +293,7 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], on
                   {completedProjects.length > 0 && (
                     <optgroup label={lang === 'en' ? '── Completed Projects ──' : '── Đã hoàn thành ──'}>
                       {completedProjects.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
+                        <option key={p.id} value={p.id} className="text-neutral-400 italic">{p.name} (Đã xong)</option>
                       ))}
                     </optgroup>
                   )}

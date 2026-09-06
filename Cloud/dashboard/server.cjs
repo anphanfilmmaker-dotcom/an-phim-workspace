@@ -639,11 +639,35 @@ app.delete('/api/documents/:id', async (req, res) => {
   }
 });
 
-// Update Action Status
+// Update Action
 app.put('/api/actions/:id', async (req, res) => {
   try {
-    const { status } = req.body;
-    await dbRun("UPDATE actions SET status = ? WHERE id = ?", [status, req.params.id]);
+    const fields = [];
+    const values = [];
+    const fieldMapping = {
+      status: 'status',
+      project: 'project',
+      projectid: 'projectid',
+      prioritylevel: 'prioritylevel',
+      suggestedagent: 'suggestedagent',
+      category: 'category',
+      notes: 'notes',
+      title: 'title',
+      priorityorder: 'priorityorder'
+    };
+
+    for (const [key, val] of Object.entries(req.body)) {
+      const lowerKey = key.toLowerCase();
+      if (fieldMapping[lowerKey]) {
+        fields.push(`"${fieldMapping[lowerKey]}" = ?`);
+        values.push(val);
+      }
+    }
+
+    if (fields.length > 0) {
+      values.push(req.params.id);
+      await dbRun(`UPDATE actions SET ${fields.join(', ')} WHERE id = ?`, values);
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

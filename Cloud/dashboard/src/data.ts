@@ -233,10 +233,10 @@ export function getStoredSheetData(): GoogleSheetDB {
       const parsed = JSON.parse(rawData);
       // Perform simple validation to make sure it contains elements
       if (parsed.projects && parsed.projects.length > 0) {
-        // Enforce dynamic calculation of cashAvailable from stored values to ensure consistency
-        const totalReceived = parsed.projects.reduce((sum: any, p: any) => sum + (p.received || 0), 0);
-        const totalExpense = parsed.expenses ? parsed.expenses.reduce((sum: any, e: any) => sum + (e.amount || 0), 0) : 0;
-        parsed.dashboard.cashAvailable = (totalReceived * 0.92) - totalExpense;
+        // Enforce dynamic calculation of cashAvailable based on REAL bank transactions (incomes - expenseTransactions)
+        const totalRealIncome = (parsed.incomes || []).reduce((sum: any, inc: any) => sum + (Number(inc.amount) || 0), 0);
+        const totalRealExpense = (parsed.expenseTransactions || []).reduce((sum: any, exp: any) => sum + (Number(exp.amount) || 0), 0);
+        parsed.dashboard.cashAvailable = totalRealIncome - totalRealExpense;
         return parsed;
       }
     }
@@ -256,7 +256,7 @@ export function setStoredSheetData(data: GoogleSheetDB) {
     const updatedData = { ...data };
     
     // Active projects status counts
-    const activeProjects = updatedData.projects.filter(p => p.status !== "Hoàn thành");
+    const activeProjects = updatedData.projects.filter(p => p.status === "Đang làm");
     updatedData.dashboard.activeProjectsCount = activeProjects.length;
     
     // Total receivables
@@ -273,10 +273,10 @@ export function setStoredSheetData(data: GoogleSheetDB) {
     updatedData.dashboard.actionsCount = updatedData.actions.length;
     updatedData.dashboard.actionsCompletedCount = updatedData.actions.filter(a => a.status === "Done").length;
 
-    // Total cash available
-    const totalReceived = updatedData.projects.reduce((sum, p) => sum + p.received, 0);
-    const totalExpense = updatedData.expenses.reduce((sum, e) => sum + e.amount, 0);
-    updatedData.dashboard.cashAvailable = (totalReceived * 0.92) - totalExpense;
+    // Total cash available based on REAL bank transactions (incomes - expenseTransactions)
+    const totalRealIncome = (updatedData.incomes || []).reduce((sum, inc) => sum + (Number(inc.amount) || 0), 0);
+    const totalRealExpense = (updatedData.expenseTransactions || []).reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
+    updatedData.dashboard.cashAvailable = totalRealIncome - totalRealExpense;
 
     // Save
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedData));

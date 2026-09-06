@@ -3,7 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
+import { createPortal } from "react-dom";
+import Cropper from "react-easy-crop";
 import { GoogleSheetDB, Project, ProjectStatus, ProjectType } from "../types";
 import { formatVND } from "../data";
 import { 
@@ -22,7 +24,10 @@ import {
   Edit2,
   Trash2,
   Check,
-  X
+  X,
+  Camera,
+  Upload,
+  Image
 } from "lucide-react";
 import { translations } from "../translations";
 
@@ -191,6 +196,21 @@ export default function ProjectsPage({
   const [editingMilestoneIndex, setEditingMilestoneIndex] = useState<number | null>(null);
   const [editingMilestoneText, setEditingMilestoneText] = useState("");
   const [confirmDeleteMilestoneIndex, setConfirmDeleteMilestoneIndex] = useState<number | null>(null);
+
+  // Upload Modal State
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadPreview, setUploadPreview] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  
+  // Crop states
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+
+  const onCropComplete = useCallback((croppedArea: any, croppedAreaPixels: any) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  }, []);
 
   React.useEffect(() => {
     setNotesText(activeFocus?.notes || "");
@@ -571,16 +591,41 @@ export default function ProjectsPage({
           {activeFocus ? (
             <div className="bg-[#121417] border border-emerald-500/10 rounded-xl overflow-hidden sticky top-6">
               
-              <div className="relative h-28 bg-neutral-900 border-b border-neutral-800">
-                {activeFocus.thumbnailUrl && (
+              <div className="relative h-28 bg-[#161a20] border-b border-neutral-800 group overflow-hidden">
+                {activeFocus.thumbnailUrl ? (
                   <img 
                     src={activeFocus.thumbnailUrl} 
                     alt={activeFocus.name} 
                     referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover opacity-45"
+                    className="w-full h-full object-cover opacity-50 group-hover:opacity-40 transition-opacity"
                   />
+                ) : (
+                  <div 
+                    onClick={() => setIsUploadModalOpen(true)}
+                    className="w-full h-full flex flex-col items-center justify-center cursor-pointer bg-neutral-900/60 hover:bg-neutral-800/60 transition-colors group/empty"
+                  >
+                    <div className="flex items-center space-x-2 text-neutral-400 group-hover/empty:text-emerald-400 text-xs font-mono">
+                      <Camera className="w-5 h-5 text-emerald-400" />
+                      <span>{lang === "en" ? "Upload project image" : "Tải ảnh đại diện dự án"}</span>
+                    </div>
+                  </div>
                 )}
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#121417] via-black/40 to-transparent p-4 flex flex-col justify-end h-full">
+                
+                {/* Upload / Change Image Button */}
+                <button 
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsUploadModalOpen(true);
+                  }}
+                  className="absolute top-2.5 right-2.5 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center space-x-1.5 transition-all z-30 text-[11px] font-mono font-semibold shadow-lg shadow-black/50 border border-emerald-400/40 cursor-pointer"
+                  title="Tải lên / Đổi ảnh dự án"
+                >
+                  <Camera className="w-3.5 h-3.5 text-white" />
+                  <span>{lang === "en" ? "Change Image" : "Đổi ảnh"}</span>
+                </button>
+
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#121417] via-black/60 to-transparent p-4 flex flex-col justify-end pointer-events-none z-10">
                   <span className="text-[10px] uppercase font-mono text-emerald-400 font-medium">{t.projectDetails}</span>
                   <p className="text-[10px] text-neutral-300 font-mono mt-0.5">{activeFocus.client}</p>
                   <h3 className="text-sm font-sans font-bold text-white tracking-tight truncate mt-0.5">
@@ -1028,6 +1073,160 @@ export default function ProjectsPage({
 
           </div>
         </div>
+      )}
+
+      {isUploadModalOpen && createPortal(
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-[#121417] border border-[#2b333c] rounded-xl max-w-md w-full p-6 shadow-2xl relative">
+            <button 
+              onClick={() => {
+                setIsUploadModalOpen(false);
+                setUploadFile(null);
+                setUploadPreview("");
+                setZoom(1);
+                setCrop({ x: 0, y: 0 });
+              }}
+              className="absolute top-4 right-4 text-neutral-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="text-lg font-bold text-white mb-4">Upload Hình Ảnh Dự Án</h2>
+            
+            <div className="mb-4">
+              {uploadPreview ? (
+                <div className="relative w-full h-64 bg-black/50 rounded-lg overflow-hidden">
+                  <Cropper
+                    image={uploadPreview}
+                    crop={crop}
+                    zoom={zoom}
+                    aspect={16 / 9}
+                    onCropChange={setCrop}
+                    onCropComplete={onCropComplete}
+                    onZoomChange={setZoom}
+                    classes={{ containerClassName: 'w-full h-full' }}
+                  />
+                </div>
+              ) : (
+                <label className="block w-full h-40 border-2 border-dashed border-[#2b333c] hover:border-emerald-500 rounded-lg flex flex-col items-center justify-center cursor-pointer bg-black/20 overflow-hidden relative">
+                  <div className="text-center">
+                    <Plus className="w-8 h-8 text-neutral-500 mx-auto mb-2" />
+                    <p className="text-xs text-neutral-400">Click để chọn ảnh</p>
+                  </div>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setUploadFile(file);
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          setUploadPreview(ev.target?.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                </label>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => {
+                  setIsUploadModalOpen(false);
+                  setUploadFile(null);
+                  setUploadPreview("");
+                  setZoom(1);
+                  setCrop({ x: 0, y: 0 });
+                }}
+                className="px-4 py-2 rounded-lg bg-neutral-800 text-white text-sm font-bold hover:bg-neutral-700"
+              >
+                Hủy
+              </button>
+              <button 
+                disabled={!uploadFile || !uploadPreview || isUploading}
+                onClick={async () => {
+                  if (!uploadFile || !uploadPreview || !croppedAreaPixels) return;
+                  setIsUploading(true);
+                  try {
+                    const img = new Image();
+                    img.src = uploadPreview;
+                    await new Promise((resolve) => { img.onload = resolve; });
+
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+
+                    let targetWidth = croppedAreaPixels.width;
+                    let targetHeight = croppedAreaPixels.height;
+                    
+                    const MAX_SIZE = 1200;
+                    if (targetWidth > targetHeight && targetWidth > MAX_SIZE) {
+                        targetHeight = Math.round(targetHeight * (MAX_SIZE / targetWidth));
+                        targetWidth = MAX_SIZE;
+                    } else if (targetHeight > targetWidth && targetHeight > MAX_SIZE) {
+                        targetWidth = Math.round(targetWidth * (MAX_SIZE / targetHeight));
+                        targetHeight = MAX_SIZE;
+                    }
+
+                    canvas.width = targetWidth;
+                    canvas.height = targetHeight;
+
+                    if (ctx) {
+                      ctx.drawImage(
+                        img,
+                        croppedAreaPixels.x,
+                        croppedAreaPixels.y,
+                        croppedAreaPixels.width,
+                        croppedAreaPixels.height,
+                        0,
+                        0,
+                        targetWidth,
+                        targetHeight
+                      );
+                    }
+
+                    const croppedWebpBase64 = canvas.toDataURL('image/webp', 0.8);
+
+                    const token = localStorage.getItem('anphim_auth_token');
+                    // Đổi đuôi file thành .webp vì đã convert
+                    const newFilename = uploadFile.name.replace(/\.[^/.]+$/, "") + ".webp";
+                    const res = await fetch('/api/upload-thumbnail', {
+                      method: 'POST',
+                      headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': token ? `Bearer ${token}` : ''
+                      },
+                      body: JSON.stringify({ filename: newFilename, base64: croppedWebpBase64 })
+                    });
+                    const data = await res.json();
+                    if (data.url) {
+                      if (onUpdateProject && activeFocus) {
+                        onUpdateProject({ ...activeFocus, thumbnailUrl: data.url });
+                      }
+                      setIsUploadModalOpen(false);
+                      setUploadFile(null);
+                      setUploadPreview("");
+                      setZoom(1);
+                      setCrop({ x: 0, y: 0 });
+                    } else {
+                      alert('Upload failed: ' + data.error);
+                    }
+                  } catch (err) {
+                    alert('Upload failed.');
+                  } finally {
+                    setIsUploading(false);
+                  }
+                }}
+                className="px-4 py-2 rounded-lg bg-emerald-500 text-black text-sm font-bold hover:bg-emerald-400 disabled:opacity-50"
+              >
+                {isUploading ? 'Đang tải...' : 'Lưu'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
     </div>

@@ -16,7 +16,8 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Ensure API responses use UTF-8 encoding and JWT Auth
 app.use('/api', (req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -46,6 +47,59 @@ app.post('/api/login', (req, res) => {
     res.json({ token });
   } else {
     res.status(401).json({ error: 'Invalid password' });
+  }
+});
+
+app.post('/api/upload-thumbnail', async (req, res) => {
+  try {
+    const { filename, base64 } = req.body;
+    if (!filename || !base64) {
+      return res.status(400).json({ error: 'Missing filename or base64 data' });
+    }
+
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const anonKey = process.env.SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !anonKey) {
+      return res.status(500).json({ error: 'Missing Supabase credentials in .env (SUPABASE_URL and SUPABASE_ANON_KEY)' });
+    }
+
+    // Convert base64 back to buffer
+    const base64Data = base64.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+    
+    // Determine mime type from filename
+    let contentType = 'image/jpeg';
+    if (filename.endsWith('.png')) contentType = 'image/png';
+    else if (filename.endsWith('.webp')) contentType = 'image/webp';
+    else if (filename.endsWith('.gif')) contentType = 'image/gif';
+    else if (filename.endsWith('.svg')) contentType = 'image/svg+xml';
+
+    const cleanFilename = Date.now() + '_' + filename.replace(/[^a-zA-Z0-9.\\-]/g, '_');
+    const uploadUrl = `${supabaseUrl}/storage/v1/object/project-thumbnails/${cleanFilename}`;
+    
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${anonKey}`,
+        'apikey': anonKey,
+        'Content-Type': contentType,
+      },
+      body: buffer
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Supabase upload error:', errorText);
+      return res.status(500).json({ error: 'Failed to upload to Supabase: ' + errorText });
+    }
+
+    const publicUrl = `${supabaseUrl}/storage/v1/object/public/project-thumbnails/${cleanFilename}`;
+    res.json({ url: publicUrl });
+
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -317,9 +371,9 @@ async function initDb() {
 app.get('/api/agent/:agentId/profile', (req, res) => {
   try {
     const agentMap = {
-      'tram_anh': 'tram_anh_sop.md',
-      'minh_thu': 'minh_thu_guideline.md',
-      'quoc_bao': 'quoc_bao_guideline.md',
+      'tram_anh': 'tram_anh_sop_cloud.md',
+      'minh_thu': 'minh_thu_guideline_cloud.md',
+      'quoc_bao': 'quoc_bao_guideline_cloud.md',
       'minh_dan': 'minh_dan_guideline.md',
       'chi_hai': 'chi_hai_guideline.md'
     };
@@ -535,6 +589,14 @@ app.post('/api/projects', async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [p.id, p.name, p.client, p.status, p.budget, p.received, p.dueDate, p.nextAction, p.nextActionDue, p.projectType, p.paymentD1, p.paymentD2, p.paymentD3, JSON.stringify(p.milestones), p.paymentPhase, p.paymentPhaseProgress, p.thumbnailUrl, p.notes]
     );
+    
+    // Auto-seed projectdocuments row for the new project
+    await dbRun(
+      `INSERT INTO projectdocuments (projectid, projectname, overallstatus, quote, contract, vatr1, vatr2, vatr3, liquidation)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [p.id, p.name, 'Chưa có', 0, 0, 0, 0, 0, 0]
+    );
+    
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -588,16 +650,6 @@ app.put('/api/actions/:id', async (req, res) => {
   }
 });
 
-// Clear Finance Alert
-app.put('/api/alerts/:id', async (req, res) => {
-  try {
-    const { status } = req.body;
-    await dbRun("UPDATE alerts SET status = ? WHERE id = ?", [status, req.params.id]);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // Update Agent Status
 app.put('/api/agents/:id', async (req, res) => {
@@ -644,9 +696,9 @@ app.get('/api/agent/:id/profile', async (req, res) => {
   try {
     const agentId = req.params.id;
     let fileName = '';
-    if (agentId === 'tram_anh') fileName = 'tram_anh_sop.md';
-    else if (agentId === 'minh_thu') fileName = 'minh_thu_guideline.md';
-    else if (agentId === 'quoc_bao') fileName = 'quoc_bao_guideline.md';
+    if (agentId === 'tram_anh') fileName = 'tram_anh_sop_cloud.md';
+    else if (agentId === 'minh_thu') fileName = 'minh_thu_guideline_cloud.md';
+    else if (agentId === 'quoc_bao') fileName = 'quoc_bao_guideline_cloud.md';
     else if (agentId === 'minh_dan') fileName = 'minh_dan_guideline.md';
     else if (agentId === 'chi_hai') fileName = 'chi_hai_guideline.md';
     
@@ -723,7 +775,7 @@ app.patch('/api/projects/:id', async (req, res) => {
       // Lowercase key because postgres columns were created without quotes (case folded to lower)
       const colName = key.toLowerCase();
       // Ignore some camelCase props that aren't columns or should be skipped
-      if (['projectname', 'totalexpenses'].includes(colName)) continue;
+      if (['projectname', 'totalexpenses', 'paymentphase', 'paymentphaseprogress'].includes(colName)) continue;
       
       query += `"${colName}" = ?, `;
       values.push(typeof val === 'object' ? JSON.stringify(val) : val);
@@ -947,9 +999,9 @@ app.post('/api/chat', async (req, res) => {
     
     // Dynamically load System Prompt
     let fileName = '';
-    if (agentName.includes('Trâm Anh')) fileName = 'tram_anh_sop.md';
-    else if (agentName.includes('Minh Thư')) fileName = 'minh_thu_guideline.md';
-    else if (agentName.includes('Quốc Bảo')) fileName = 'quoc_bao_guideline.md';
+    if (agentName.includes('Trâm Anh')) fileName = 'tram_anh_sop_cloud.md';
+    else if (agentName.includes('Minh Thư')) fileName = 'minh_thu_guideline_cloud.md';
+    else if (agentName.includes('Quốc Bảo')) fileName = 'quoc_bao_guideline_cloud.md';
     else if (agentName.includes('Minh Đan')) fileName = 'minh_dan_guideline.md';
     else if (agentName.includes('Chí Hải')) fileName = 'chi_hai_guideline.md';
 

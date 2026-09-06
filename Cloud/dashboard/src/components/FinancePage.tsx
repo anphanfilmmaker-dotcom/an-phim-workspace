@@ -78,6 +78,7 @@ export default function FinancePage({
   // Filters for Expense Details
   const [filterMonth, setFilterMonth] = React.useState("All");
   const [filterProject, setFilterProject] = React.useState("All");
+  const [isProjectDropdownOpen, setIsProjectDropdownOpen] = React.useState(false);
   const [filterCategory, setFilterCategory] = React.useState("All");
   const [filterPaymentMethod, setFilterPaymentMethod] = React.useState("All");
 
@@ -739,21 +740,99 @@ export default function FinancePage({
                 {availableMonths.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
 
-              <select
-                value={filterProject}
-                onChange={e => setFilterProject(e.target.value)}
-                className="bg-[#171b21] border border-[#232a32] text-white text-[10px] font-mono rounded px-2 py-1 outline-none max-w-[150px] truncate"
-              >
-                <option value="All">{lang === "en" ? "All Projects" : "Tất cả dự án"}</option>
-                <optgroup label={lang === "en" ? "── Active / In Progress ──" : "── Đang hoạt động ──"}>
-                  {availableProjects.active.map(p => <option key={p} value={p}>{p}</option>)}
-                </optgroup>
-                {availableProjects.completed.length > 0 && (
-                  <optgroup label={lang === "en" ? "── Completed Projects ──" : "── Đã hoàn thành ──"}>
-                    {availableProjects.completed.map(p => <option key={p} value={p}>{p}</option>)}
-                  </optgroup>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
+                  className="bg-[#171b21] hover:bg-[#1c2229] border border-[#232a32] text-white text-[10px] font-mono rounded px-2.5 py-1 outline-none max-w-[170px] flex items-center justify-between gap-1.5 transition cursor-pointer"
+                >
+                  <span className="truncate">
+                    {filterProject === "All" ? (lang === "en" ? "All Projects" : "Tất cả dự án") : filterProject}
+                  </span>
+                  <ChevronDown className="w-3 h-3 text-neutral-400 shrink-0" />
+                </button>
+
+                {isProjectDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsProjectDropdownOpen(false)} />
+                    <div className="absolute left-0 top-full mt-1 w-64 bg-[#12161b] border border-[#2b333c] rounded-xl shadow-2xl z-50 overflow-hidden py-1.5 backdrop-blur-md max-h-72 overflow-y-auto custom-scrollbar font-mono text-[10px]">
+                      {/* Option: All */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFilterProject("All");
+                          setIsProjectDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-1.5 flex items-center justify-between transition cursor-pointer ${
+                          filterProject === "All" 
+                            ? "bg-emerald-500/15 text-emerald-400 font-bold" 
+                            : "text-neutral-200 hover:bg-neutral-800/60"
+                        }`}
+                      >
+                        <span>{lang === "en" ? "All Projects" : "Tất cả dự án"}</span>
+                        {filterProject === "All" && <span className="text-[10px]">✓</span>}
+                      </button>
+
+                      {/* Header: Active */}
+                      <div className="px-3 pt-2.5 pb-1 text-[9px] font-bold tracking-wider text-emerald-400 uppercase flex items-center gap-1 border-t border-neutral-800/80 mt-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
+                        <span>{lang === "en" ? "Active / In Progress" : "Đang hoạt động"}</span>
+                      </div>
+
+                      {availableProjects.active.map(p => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => {
+                            setFilterProject(p);
+                            setIsProjectDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-1.5 flex items-center justify-between transition cursor-pointer ${
+                            filterProject === p 
+                              ? "bg-emerald-500/15 text-emerald-400 font-bold" 
+                              : "text-neutral-100 hover:bg-neutral-800/70"
+                          }`}
+                        >
+                          <span className="truncate">{p}</span>
+                          {filterProject === p && <span className="text-[10px] text-emerald-400">✓</span>}
+                        </button>
+                      ))}
+
+                      {/* Header: Completed */}
+                      {availableProjects.completed.length > 0 && (
+                        <>
+                          <div className="px-3 pt-2.5 pb-1 text-[9px] font-bold tracking-wider text-neutral-500 uppercase flex items-center gap-1 border-t border-neutral-800/80 mt-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-neutral-600 inline-block" />
+                            <span>{lang === "en" ? "Completed Projects" : "Đã hoàn thành"}</span>
+                          </div>
+
+                          {availableProjects.completed.map(p => (
+                            <button
+                              key={p}
+                              type="button"
+                              onClick={() => {
+                                setFilterProject(p);
+                                setIsProjectDropdownOpen(false);
+                              }}
+                              className={`w-full text-left px-3 py-1.5 flex items-center justify-between transition cursor-pointer italic ${
+                                filterProject === p 
+                                  ? "bg-neutral-800 text-neutral-300 font-bold not-italic" 
+                                  : "text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800/40"
+                              }`}
+                            >
+                              <span className="truncate flex items-center gap-1.5">
+                                <span className="not-italic text-[9px] opacity-70">🏁</span>
+                                <span>{p}</span>
+                              </span>
+                              {filterProject === p && <span className="text-[10px] not-italic">✓</span>}
+                            </button>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  </>
                 )}
-              </select>
+              </div>
 
               <select
                 value={filterCategory}

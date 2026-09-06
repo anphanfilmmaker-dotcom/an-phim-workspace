@@ -767,20 +767,6 @@ export default function FinancePage({
                     <div className="flex justify-between items-center mb-0.5">
                       <div className="flex items-center gap-1.5 flex-wrap min-w-0 pr-2">
                         <span className="text-neutral-500 font-mono text-[9px] shrink-0">{exp.date}</span>
-                        {(() => {
-                          const code = exp.id?.startsWith('exp_') ? exp.id.slice(4) : exp.id;
-                          if (code && code.startsWith('FT')) {
-                            return (
-                              <span 
-                                className="px-1 py-[0.5px] rounded font-mono text-[8px] text-cyan-400 bg-cyan-950/40 border border-cyan-800/40 shrink-0" 
-                                title={code}
-                              >
-                                {code.length > 16 ? code.slice(0, 14) + '…' : code}
-                              </span>
-                            );
-                          }
-                          return null;
-                        })()}
                         <div className="flex items-center gap-1 text-[8px] font-mono">
                           {exp.paymentMethod && (
                             <span className={`px-1 py-[1px] rounded uppercase truncate max-w-[60px] ${getPaymentMethodColor(exp.paymentMethod)}`}>

@@ -92,8 +92,15 @@ export default function OverviewPage({
       return false;
     });
     
-    return actions.sort((a, b) => a.priorityOrder - b.priorityOrder);
-  }, [db.actions, lang]);
+    return actions.sort((a, b) => {
+      const aDone = a.status === "Done";
+      const bDone = b.status === "Done";
+      if (aDone !== bDone) {
+        return aDone ? 1 : -1;
+      }
+      return a.priorityOrder - b.priorityOrder;
+    });
+  }, [db.actions]);
 
   // Separate pending count for the "CEO Decisions" badge
   const pendingCount = pendingActions.filter(a => a.status !== "Done").length;
@@ -692,6 +699,29 @@ function TodayTasksPanel({
     }
   };
 
+  // Helper kiểm tra xem task đã hoàn thành chưa (tính cả checkedMap theo thời gian thực)
+  const isTaskDone = (act: CEOAction) => {
+    const subTasks = splitIntoSubTasks(act.title);
+    return subTasks.every((_, idx) => {
+      const k = `${act.id}_${idx}`;
+      return checkedMap[k] !== undefined ? checkedMap[k] : (act.status === "Done");
+    });
+  };
+
+  // Sắp xếp: Các task chưa xong lên trên, các task đã xong đẩy xuống dưới cùng
+  const sortedActions = React.useMemo(() => {
+    return [...actions].sort((a, b) => {
+      const aDone = isTaskDone(a);
+      const bDone = isTaskDone(b);
+      if (aDone !== bDone) {
+        return aDone ? 1 : -1;
+      }
+      return a.priorityOrder - b.priorityOrder;
+    });
+  }, [actions, checkedMap]);
+
+  const completedCount = sortedActions.filter(isTaskDone).length;
+
   return (
     <div className="bg-[#121417] rounded-xl border border-[#1e2329]/85 py-2 pr-2 pl-[16px] flex-1 flex flex-col min-h-0 md:overflow-hidden">
       <div className="flex items-center justify-between mb-2 shrink-0 pr-1">
@@ -712,21 +742,38 @@ function TodayTasksPanel({
       </div>
 
       <div className="space-y-2 flex-1 overflow-y-auto pr-1 select-none custom-thin-scroll">
-        {actions.map((act) => {
+        {sortedActions.map((act, idx) => {
           const isSchedule = act.itemSource === "schedule" || act.id.startsWith("sync_evt_") || !!act.linkedEventId;
           const isHigh = act.priorityLevel === "High";
           const isMedium = act.priorityLevel === "Medium";
           const subTasks = splitIntoSubTasks(act.title);
+          const isDone = isTaskDone(act);
+
+          // Kiểm tra xem đây có phải item hoàn thành đầu tiên để chèn divider ngăn cách
+          const prevAct = idx > 0 ? sortedActions[idx - 1] : null;
+          const isPrevDone = prevAct ? isTaskDone(prevAct) : false;
+          const showCompletedDivider = isDone && !isPrevDone && idx > 0;
 
           return (
-            <div
-              key={act.id}
-              className={`rounded-xl p-2.5 transition group border-l-[3px] ${
-                isSchedule
-                  ? "bg-[#101713]/90 border border-emerald-500/25 border-l-emerald-500 hover:border-emerald-500/45 shadow-sm shadow-emerald-950/20"
-                  : "bg-[#1a140e]/90 border border-orange-500/25 border-l-orange-500 hover:border-orange-500/45 shadow-sm shadow-orange-950/20"
-              }`}
-            >
+            <React.Fragment key={act.id}>
+              {showCompletedDivider && (
+                <div className="flex items-center gap-2 pt-2 pb-1">
+                  <div className="h-[1px] flex-1 bg-neutral-800"></div>
+                  <span className="text-[9px] font-mono uppercase tracking-wider text-neutral-500 font-semibold">
+                    Đã hoàn thành ({completedCount})
+                  </span>
+                  <div className="h-[1px] flex-1 bg-neutral-800"></div>
+                </div>
+              )}
+              <div
+                className={`rounded-xl p-2.5 transition-all group border-l-[3px] ${
+                  isDone ? "opacity-55 hover:opacity-90" : "opacity-100"
+                } ${
+                  isSchedule
+                    ? "bg-[#101713]/90 border border-emerald-500/25 border-l-emerald-500 hover:border-emerald-500/45 shadow-sm shadow-emerald-950/20"
+                    : "bg-[#1a140e]/90 border border-orange-500/25 border-l-orange-500 hover:border-orange-500/45 shadow-sm shadow-orange-950/20"
+                }`}
+              >
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <div className={`w-5 h-5 rounded-full border text-[10px] font-sans font-semibold flex items-center justify-center shrink-0 ${
@@ -825,8 +872,9 @@ function TodayTasksPanel({
                 })}
               </div>
             </div>
-          );
-        })}
+          </React.Fragment>
+        );
+      })}
 
         {actions.length === 0 && (
           <div className="text-center py-6 border border-dashed border-neutral-800 rounded-lg text-neutral-400 text-[10px] sm:text-xs font-sans font-medium">

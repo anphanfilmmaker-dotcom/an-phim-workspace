@@ -211,7 +211,15 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
                   </div>
 
                   <div className="flex-1 flex flex-col gap-[2px] overflow-hidden">
-                    {dayEvents.slice(0, 3).map((ev, i) => (
+                    {dayEvents
+                      .slice()
+                      .sort((a, b) => {
+                        const aDone = a.status === 'done' ? 1 : 0;
+                        const bDone = b.status === 'done' ? 1 : 0;
+                        return aDone - bDone;
+                      })
+                      .slice(0, 3)
+                      .map((ev, i) => (
                       <div
                         key={ev.id}
                         draggable={true}
@@ -378,7 +386,16 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
                   <div className="text-[10px] text-[#F5F7FA] font-bold mb-1 pb-1 border-b border-[rgba(255,255,255,0.05)]">
                     {activeDateStr}
                   </div>
-                  {dayEvents.map(event => {
+                  {dayEvents
+                    .slice()
+                    .sort((a, b) => {
+                      const aDone = a.status === 'done' ? 1 : 0;
+                      const bDone = b.status === 'done' ? 1 : 0;
+                      if (aDone !== bDone) return aDone - bDone;
+                      if (a.startTime && b.startTime) return a.startTime.localeCompare(b.startTime);
+                      return 0;
+                    })
+                    .map(event => {
                     const isExpanded = dayEvents.length === 1 || selectedEvent?.id === event.id;
                     return (
                       <div
@@ -387,16 +404,54 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
                         className={`flex flex-col gap-2 relative bg-[#161C24] p-2.5 rounded-[8px] border ${isExpanded ? 'border-[rgba(255,255,255,0.15)]' : 'border-[rgba(255,255,255,0.05)]'} hover:border-[rgba(255,255,255,0.1)] transition-colors group cursor-pointer`}
                       >
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 pr-12">
-                            <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${event.category === 'work' ? 'bg-[#10B981]' :
+                          <div className="flex items-center gap-2 pr-16">
+                            {onEditEvent && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const nextStatus = event.status === 'done' ? 'todo' : 'done';
+                                  onEditEvent({ ...event, status: nextStatus });
+                                }}
+                                className={`w-4 h-4 rounded-[4px] shrink-0 flex items-center justify-center transition border ${
+                                  event.status === 'done'
+                                    ? 'bg-[#10B981] border-[#10B981] text-[#050809]'
+                                    : 'border-[rgba(255,255,255,0.25)] hover:border-[#10B981] text-transparent hover:text-[#10B981]'
+                                }`}
+                                title={event.status === 'done' ? (lang === 'en' ? 'Mark incomplete' : 'Đánh dấu chưa xong') : (lang === 'en' ? 'Mark completed' : 'Đánh dấu hoàn thành')}
+                              >
+                                <Check className="w-2.5 h-2.5 stroke-[3]" />
+                              </button>
+                            )}
+
+                            <div className={`w-2 h-2 rounded-full shrink-0 ${event.category === 'work' ? 'bg-[#10B981]' :
                                 event.category === 'personal' ? 'bg-[#06b6d4]' :
                                   event.category === 'meeting' ? 'bg-[#f97316]' :
                                     event.category === 'ai_agent' ? 'bg-[#a855f7]' : 'bg-[#8B949E]'
                               }`} />
-                            <h4 className="text-[#F5F7FA] text-[12px] font-bold leading-tight">{event.title}</h4>
+                            <h4 className={`text-[12px] font-bold leading-tight transition-all ${event.status === 'done' ? 'text-[#8B949E] line-through' : 'text-[#F5F7FA]'}`}>
+                              {event.title}
+                            </h4>
                           </div>
 
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2">
+                            {onEditEvent && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const nextStatus = event.status === 'done' ? 'todo' : 'done';
+                                  onEditEvent({ ...event, status: nextStatus });
+                                }}
+                                className={`p-1 rounded transition-colors ${
+                                  event.status === 'done'
+                                    ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                                    : 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10'
+                                }`}
+                                title={event.status === 'done' ? (lang === 'en' ? 'Mark incomplete' : 'Đánh dấu chưa xong') : (lang === 'en' ? 'Mark completed' : 'Đánh dấu hoàn thành')}
+                              >
+                                <Check className="w-3 h-3" />
+                              </button>
+                            )}
                             {onEditEvent && (
                               <button
                                 onClick={(e) => {
@@ -513,7 +568,7 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
             onAddEvent({
               ...data,
               id: `evt-${Date.now()}`,
-              status: "todo"
+              status: data.status || "todo"
             });
           }
         }}

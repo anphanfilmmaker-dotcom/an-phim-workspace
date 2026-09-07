@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar as CalendarIcon, Clock, ChevronDown, Flag, User, Bell } from 'lucide-react';
+import { X, Calendar as CalendarIcon, Clock, ChevronDown, Flag, User, Bell, Check } from 'lucide-react';
 import { Project, AIAgent } from '../types';
 
 interface NewEventModalProps {
@@ -20,6 +20,7 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], ag
   const [endTime, setEndTime] = useState('15:30');
   const [category, setCategory] = useState('meeting');
   const [priority, setPriority] = useState('high');
+  const [status, setStatus] = useState<'todo' | 'in_progress' | 'done'>('todo');
   const [owner, setOwner] = useState('An Phan');
   const [projectId, setProjectId] = useState('Galaxy Corp TVC');
   const [description, setDescription] = useState('');
@@ -45,6 +46,7 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], ag
         setEndTime(initialEvent.endTime || '');
         setCategory(initialEvent.category || 'meeting');
         setPriority(initialEvent.priority || 'medium');
+        setStatus(initialEvent.status || 'todo');
         setOwner(initialEvent.agent || initialEvent.owner || initialEvent.suggestedAgent || '');
         setProjectId(initialEvent.projectId || '');
         setDescription(initialEvent.description || '');
@@ -55,6 +57,7 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], ag
         setEndTime('');
         setCategory('meeting');
         setPriority('medium');
+        setStatus('todo');
         setOwner('');
         setProjectId('');
         setDescription('');
@@ -64,7 +67,8 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], ag
 
   if (!isOpen) return null;
 
-  const handleSubmit = () => {
+  const handleSubmit = (customStatus?: 'todo' | 'in_progress' | 'done') => {
+    const finalStatus = customStatus !== undefined ? customStatus : status;
     onSubmit({
       title: eventName,
       date,
@@ -72,6 +76,7 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], ag
       endTime,
       category,
       priority,
+      status: finalStatus,
       owner: owner === 'An Phan' || owner === 'CEO' ? 'CEO' : owner,
       agent: owner,
       projectId,
@@ -181,8 +186,8 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], ag
             </div>
           </div>
 
-          {/* Category & Priority Row */}
-          <div className="grid grid-cols-2 gap-2.5">
+          {/* Category, Priority & Status Row */}
+          <div className="grid grid-cols-3 gap-2.5">
             <div>
               <label className={labelClass}>
                 {lang === 'en' ? 'Category' : 'Danh mục'} <span className="text-[#ef4444]">*</span>
@@ -193,7 +198,7 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], ag
                   onChange={(e) => setCategory(e.target.value)}
                   className={selectClass}
                 >
-                  <option value="meeting">{lang === 'en' ? 'Meeting / Event' : 'Họp / Sự kiện'}</option>
+                  <option value="meeting">{lang === 'en' ? 'Meeting' : 'Họp / Sự kiện'}</option>
                   <option value="work">{lang === 'en' ? 'Work' : 'Công việc'}</option>
                   <option value="personal">{lang === 'en' ? 'Personal' : 'Cá nhân'}</option>
                   <option value="ai_agent">AI Agent</option>
@@ -213,7 +218,7 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], ag
             
             <div>
               <label className={labelClass}>
-                {lang === 'en' ? 'Priority' : 'Mức độ ưu tiên'} <span className="text-[#ef4444]">*</span>
+                {lang === 'en' ? 'Priority' : 'Ưu tiên'} <span className="text-[#ef4444]">*</span>
               </label>
               <div className="relative">
                 <select 
@@ -227,6 +232,30 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], ag
                 </select>
                 <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-[#ef4444] flex items-center justify-center">
                   <Flag className="w-3.5 h-3.5" />
+                </div>
+                <ChevronDown className="w-3.5 h-3.5 text-[#8B949E] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+
+            <div>
+              <label className={labelClass}>
+                {lang === 'en' ? 'Status' : 'Trạng thái'}
+              </label>
+              <div className="relative">
+                <select 
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as any)}
+                  className={selectClass}
+                >
+                  <option value="todo">{lang === 'en' ? 'To Do' : 'Chưa làm'}</option>
+                  <option value="in_progress">{lang === 'en' ? 'In Progress' : 'Đang làm'}</option>
+                  <option value="done">{lang === 'en' ? 'Completed' : 'Hoàn thành'}</option>
+                </select>
+                <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center">
+                  <div className={`w-2.5 h-2.5 rounded-full ${
+                    status === 'done' ? 'bg-[#10B981]' :
+                    status === 'in_progress' ? 'bg-[#f59e0b]' : 'bg-[#64748b]'
+                  }`}></div>
                 </div>
                 <ChevronDown className="w-3.5 h-3.5 text-[#8B949E] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
@@ -378,22 +407,47 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], ag
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2.5 pt-2.5 border-t border-[rgba(255,255,255,0.05)]">
-            <button 
-              onClick={onClose}
-              className="px-5 py-1.5 rounded-[6px] text-[12px] font-medium text-[#E2E8F0] bg-[#111826] border border-[rgba(255,255,255,0.08)] hover:bg-white/5 transition w-full sm:w-auto text-center"
-            >
-              {lang === 'en' ? 'Cancel' : 'Huỷ'}
-            </button>
-            <button 
-              onClick={handleSubmit}
-              className="px-5 py-1.5 rounded-[6px] bg-[#10B981] hover:bg-[#059669] text-[#050809] text-[13px] font-bold transition flex items-center justify-center gap-1 shadow-[0_4px_12px_rgba(16,185,129,0.3)] w-full sm:w-auto"
-            >
-              {!initialEvent && <span className="text-[14px] leading-none mb-[1px]">+</span>}
-              {initialEvent 
-                ? (lang === 'en' ? 'Save' : 'Lưu')
-                : (lang === 'en' ? 'Create Event' : 'Tạo sự kiện')}
-            </button>
+          <div className="flex items-center justify-between gap-2.5 pt-2.5 border-t border-[rgba(255,255,255,0.05)]">
+            {initialEvent ? (
+              <button 
+                type="button"
+                onClick={() => {
+                  const nextStatus = status === 'done' ? 'todo' : 'done';
+                  setStatus(nextStatus);
+                  handleSubmit(nextStatus);
+                }}
+                className={`px-3.5 py-1.5 rounded-[6px] text-[12px] font-semibold transition flex items-center gap-1.5 border ${
+                  status === 'done'
+                    ? 'bg-amber-500/15 text-amber-300 border-amber-500/30 hover:bg-amber-500/25'
+                    : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25 shadow-[0_2px_10px_rgba(16,185,129,0.15)]'
+                }`}
+              >
+                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                {status === 'done' 
+                  ? (lang === 'en' ? 'Mark Incomplete' : 'Đánh dấu chưa xong') 
+                  : (lang === 'en' ? 'Mark Completed' : 'Đánh dấu hoàn thành')}
+              </button>
+            ) : <div />}
+
+            <div className="flex items-center gap-2">
+              <button 
+                type="button"
+                onClick={onClose}
+                className="px-5 py-1.5 rounded-[6px] text-[12px] font-medium text-[#E2E8F0] bg-[#111826] border border-[rgba(255,255,255,0.08)] hover:bg-white/5 transition text-center"
+              >
+                {lang === 'en' ? 'Cancel' : 'Huỷ'}
+              </button>
+              <button 
+                type="button"
+                onClick={() => handleSubmit()}
+                className="px-5 py-1.5 rounded-[6px] bg-[#10B981] hover:bg-[#059669] text-[#050809] text-[13px] font-bold transition flex items-center justify-center gap-1 shadow-[0_4px_12px_rgba(16,185,129,0.3)]"
+              >
+                {!initialEvent && <span className="text-[14px] leading-none mb-[1px]">+</span>}
+                {initialEvent 
+                  ? (lang === 'en' ? 'Save' : 'Lưu')
+                  : (lang === 'en' ? 'Create Event' : 'Tạo sự kiện')}
+              </button>
+            </div>
           </div>
 
         </div>

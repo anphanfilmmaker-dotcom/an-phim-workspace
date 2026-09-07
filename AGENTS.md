@@ -95,3 +95,13 @@ Agent tuyệt đối KHÔNG ĐƯỢC tự ý gọi lệnh quét mail (vd: `--sca
   - Bảng `incomes` và `expensetransactions` chỉ được tạo khi có giao dịch thực tế trên tài khoản cá nhân, và **BẮT BUỘC ưu tiên có Mã giao dịch ngân hàng (`FT...`) hoặc MoMo**.
   - Tiền mặt sẵn có (`cashAvailable`) chỉ được tính từ: $\text{Tổng Incomes thực tế} - \text{Tổng Expense thực tế}$.
 
+## 9. Phân biệt rõ ràng giữa Bảng Actions và Bảng Schedule
+- **Bảng `schedule` (Lịch trình & việc Sếp làm hàng ngày - Màu Xanh Lá):**
+  - Quản lý TẤT CẢ công việc, nhiệm vụ, lịch hẹn và hoạt động Sếp thực hiện mỗi ngày.
+  - Khi Sếp yêu cầu note việc (ví dụ: *"note cho tôi việc ngày mai..."*, chat nhờ Trâm Anh note việc...), Trâm Anh và các Agent **BẮT BUỘC lưu vào bảng `schedule`** và **TỰ ĐỘNG SẮP XẾP KHUNG GIỜ HỢP LÝ** (`startTime`, `endTime`) rải đều trong ngày làm việc.
+  - Tuyệt đối KHÔNG được lưu việc Sếp làm vào bảng `actions`.
+- **Bảng `actions` (Yêu cầu Agent cần Sếp Input - Màu Cam):**
+  - CHỈ dành cho các yêu cầu do AI Agent tự động sinh ra khi chạy tác vụ ngầm (ví dụ: quét mail/sao kê thiếu hóa đơn, thiếu thông tin khoản chi, cần Sếp duyệt báo giá...).
+  - Các mục này **KHÔNG CÓ THỜI GIAN** (không có giờ cụ thể).
+- **Tránh trùng lặp:** Tuyệt đối không tạo 1 công việc vào cả 2 bảng. Trên giao diện Today Task, các mục từ Schedule sẽ có viền xanh lá kèm thời gian, các mục từ Action sẽ có viền cam và badge "Cần Input".
+

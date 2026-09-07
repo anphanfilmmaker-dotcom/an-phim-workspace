@@ -1247,43 +1247,32 @@ export default function App() {
             const todayStr = `${actualToday.getFullYear()}-${String(actualToday.getMonth() + 1).padStart(2, '0')}-${String(actualToday.getDate()).padStart(2, '0')}`;
             const todaysEvents = aggregatedDb.schedule.filter(e => e.date === todayStr);
 
-            // Sync status and metadata between schedule events and existing db.actions
-            const syncedDbActions = (db.actions || []).map(act => {
-              const matchedEvt = todaysEvents.find(e => isMatchingTask(e.title, e.description, act.title));
-              if (matchedEvt) {
-                const isDone = act.status === 'Done' || matchedEvt.status === 'done';
-                const resolvedProjectName = matchedEvt.projectId
-                  ? (db.projects.find(p => p.id === matchedEvt.projectId)?.name || act.project)
-                  : act.project;
-
-                return {
-                  ...act,
-                  status: (isDone ? 'Done' : 'Pending') as any,
-                  linkedEventId: matchedEvt.id,
-                  project: resolvedProjectName || act.project,
-                  category: (matchedEvt.category || act.category) as any,
-                  suggestedAgent: matchedEvt.agent || matchedEvt.owner || act.suggestedAgent,
-                };
-              }
-              return act;
-            });
-
-            // Only map schedule events that DO NOT match any existing db.actions
-            const unmappedEvents = todaysEvents.filter(e => 
-              !syncedDbActions.some(act => isMatchingTask(e.title, e.description, act.title))
-            );
-
-            const mappedActionsFromEvents: import("./types").CEOAction[] = unmappedEvents.map((e, idx) => ({
+            // 1. Schedule items (Màu xanh lá - có giờ cụ thể do Sếp yêu cầu hoặc Trâm Anh sắp xếp)
+            const scheduleActions: import("./types").CEOAction[] = todaysEvents.map((e, idx) => ({
               id: `sync_evt_${e.id}`,
-              priorityOrder: e.priority === 'high' ? 1 : 2,
+              priorityOrder: idx + 1,
               title: e.title,
               project: e.projectId ? db.projects.find(p => p.id === e.projectId)?.name || "Dự án" : "Lịch làm việc",
               priorityLevel: e.priority === 'high' ? "High" : (e.priority === 'medium' ? "Medium" : "Low"),
-              suggestedAgent: "System Sync",
+              suggestedAgent: e.agent || e.owner || "Trâm Anh",
               status: e.status === 'done' ? "Done" : "Pending",
-              category: e.category
+              category: e.category,
+              itemSource: 'schedule',
+              timeStr: e.startTime ? `${e.startTime}${e.endTime ? ' - ' + e.endTime : ''}` : undefined,
+              linkedEventId: e.id,
             }));
-            const overviewDb = { ...db, actions: [...mappedActionsFromEvents, ...syncedDbActions] };
+
+            // 2. Action items from agents (Màu cam - KHÔNG CÓ THỜI GIAN, do agent tự động tạo khi cần Sếp input)
+            const agentActions: import("./types").CEOAction[] = (db.actions || [])
+              .filter(act => !todaysEvents.some(e => isMatchingTask(e.title, e.description, act.title)))
+              .map((act, idx) => ({
+                ...act,
+                priorityOrder: scheduleActions.length + idx + 1,
+                itemSource: 'action',
+                timeStr: undefined,
+              }));
+
+            const overviewDb = { ...db, actions: [...scheduleActions, ...agentActions] };
 
             return (
               <OverviewPage 

@@ -18,7 +18,8 @@ import {
   Clock,
   User,
   TrendingUp,
-  ArrowUpRight
+  ArrowUpRight,
+  AlertCircle
 } from "lucide-react";
 import { translations } from "../translations";
 
@@ -693,12 +694,26 @@ function TodayTasksPanel({
 
   return (
     <div className="bg-[#121417] rounded-xl border border-[#1e2329]/85 py-2 pr-2 pl-[16px] flex-1 flex flex-col min-h-0 md:overflow-hidden">
-      <h3 className="text-[11px] sm:text-xs font-mono text-orange-400 uppercase tracking-widest mb-2 shrink-0">
-        {t.todaysPriorityActions}
-      </h3>
+      <div className="flex items-center justify-between mb-2 shrink-0 pr-1">
+        <h3 className="text-[11px] sm:text-xs font-mono text-white font-bold uppercase tracking-widest">
+          {t.todaysPriorityActions}
+        </h3>
+        {/* Legend pills: Green = Schedule (có giờ), Orange = Action (cần input) */}
+        <div className="flex items-center space-x-1.5 text-[9px] font-mono select-none">
+          <span className="flex items-center space-x-1 text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 px-1.5 py-0.5 rounded">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>Lịch làm</span>
+          </span>
+          <span className="flex items-center space-x-1 text-orange-400 bg-orange-950/40 border border-orange-500/30 px-1.5 py-0.5 rounded">
+            <span className="w-1.5 h-1.5 rounded-full bg-orange-400"></span>
+            <span>Cần Input</span>
+          </span>
+        </div>
+      </div>
 
       <div className="space-y-2 flex-1 overflow-y-auto pr-1 select-none custom-thin-scroll">
         {actions.map((act) => {
+          const isSchedule = act.itemSource === "schedule" || act.id.startsWith("sync_evt_") || !!act.linkedEventId;
           const isHigh = act.priorityLevel === "High";
           const isMedium = act.priorityLevel === "Medium";
           const subTasks = splitIntoSubTasks(act.title);
@@ -706,15 +721,23 @@ function TodayTasksPanel({
           return (
             <div
               key={act.id}
-              className="bg-[#171b21] border border-[#232a32] rounded-xl p-2 transition group"
+              className={`rounded-xl p-2.5 transition group border-l-[3px] ${
+                isSchedule
+                  ? "bg-[#101713]/90 border border-emerald-500/25 border-l-emerald-500 hover:border-emerald-500/45 shadow-sm shadow-emerald-950/20"
+                  : "bg-[#1a140e]/90 border border-orange-500/25 border-l-orange-500 hover:border-orange-500/45 shadow-sm shadow-orange-950/20"
+              }`}
             >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-5 h-5 rounded-full bg-neutral-900 border border-neutral-800 text-[10px] font-sans font-semibold text-neutral-400 flex items-center justify-center shrink-0">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <div className={`w-5 h-5 rounded-full border text-[10px] font-sans font-semibold flex items-center justify-center shrink-0 ${
+                    isSchedule
+                      ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
+                      : "bg-orange-950/60 border-orange-500/40 text-orange-300"
+                  }`}>
                     {act.priorityOrder}
                   </div>
                   <span
-                    className={`text-[10px] px-1.5 rounded font-sans uppercase font-semibold border ${isHigh
+                    className={`text-[10px] px-1.5 rounded font-sans uppercase font-semibold border shrink-0 ${isHigh
                       ? "bg-red-950/40 border-red-900/60 text-red-400"
                       : isMedium
                         ? "bg-orange-950/40 border-orange-900/60 text-orange-400"
@@ -723,21 +746,41 @@ function TodayTasksPanel({
                   >
                     {translatePriority(act.priorityLevel)}
                   </span>
-                  {/* Project label (Date) */}
-                  <span className="text-[10px] text-neutral-400 font-mono tracking-wide ml-1">{act.project}</span>
-                </div>
-                {act.category ? (() => {
-                  const tag = getCategoryTag(act.category, lang);
-                  return tag ? (
-                    <span className={`text-[9px] font-mono border px-1.5 py-0.5 rounded flex items-center space-x-1 ${tag.color}`}>
-                      <span className="truncate max-w-[120px]">{tag.label}</span>
-                    </span>
-                  ) : null;
-                })() : (
-                  <span className="text-[9px] text-[#10B981] font-mono bg-emerald-950/30 border border-emerald-950/50 px-1.5 py-0.5 rounded flex items-center space-x-1">
-                    <span className="truncate max-w-[120px]">{act.suggestedAgent}</span>
+                  {/* Project label */}
+                  <span className={`text-[10px] font-mono tracking-wide ml-1 truncate max-w-[120px] ${
+                    isSchedule ? "text-emerald-400/90" : "text-orange-400/90"
+                  }`}>
+                    {act.project}
                   </span>
-                )}
+                </div>
+
+                {/* Right badges: Time for schedule or "Cần input" badge for action */}
+                <div className="flex items-center space-x-1.5 shrink-0">
+                  {isSchedule && act.timeStr ? (
+                    <span className="text-[9px] font-mono text-emerald-300 bg-emerald-950/60 border border-emerald-500/40 px-1.5 py-0.5 rounded flex items-center space-x-1">
+                      <Clock className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
+                      <span>{act.timeStr}</span>
+                    </span>
+                  ) : !isSchedule ? (
+                    <span className="text-[9px] font-mono text-orange-300 bg-orange-950/60 border border-orange-500/40 px-1.5 py-0.5 rounded flex items-center space-x-1">
+                      <AlertCircle className="w-2.5 h-2.5 text-orange-400 shrink-0" />
+                      <span>Cần Input</span>
+                    </span>
+                  ) : null}
+
+                  {act.category ? (() => {
+                    const tag = getCategoryTag(act.category, lang);
+                    return tag ? (
+                      <span className={`text-[9px] font-mono border px-1.5 py-0.5 rounded flex items-center space-x-1 ${tag.color}`}>
+                        <span className="truncate max-w-[80px]">{tag.label}</span>
+                      </span>
+                    ) : null;
+                  })() : (
+                    <span className="text-[9px] text-[#10B981] font-mono bg-emerald-950/30 border border-emerald-950/50 px-1.5 py-0.5 rounded flex items-center space-x-1">
+                      <span className="truncate max-w-[80px]">{act.suggestedAgent}</span>
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Sub-tasks */}

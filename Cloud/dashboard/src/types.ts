@@ -109,6 +109,9 @@ export interface CEOAction {
   status: "Pending" | "Done" | "Waiting" | "Need Follow-up";
   notes?: string;
   category?: "work" | "personal" | "meeting" | "ai_agent" | "other";
+  itemSource?: "action" | "schedule";
+  timeStr?: string;
+  linkedEventId?: string;
 }
 
 // Structuring an AI Agent

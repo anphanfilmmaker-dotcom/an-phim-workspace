@@ -10,11 +10,12 @@ from dotenv import load_dotenv
 
 sys.path.append(r"E:\.agents\Cloud\shared\core")
 from db_connection import execute_query
+sys.path.append(r'E:\.agents\Cloud\shared')
+from finance_utils import extract_raw_transaction, apply_gmail_label, get_active_projects, get_all_projects, normalize_text, get_payees, classify_expense_smart_rules
 try:
     from docxtpl import DocxTemplate
 except ImportError:
     pass
-
 
 # Set terminal output to UTF-8
 if sys.platform.startswith('win'):
@@ -23,143 +24,6 @@ if sys.platform.startswith('win'):
     sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
 
 ENV_PATH = r"g:\My Drive\[ANPHIM] MASTER PLANN\01_MARKETING\AN PHIM_Fanpage\.env"
-
-def extract_raw_transaction(text, email_from):
-    amount = 0
-    note = ""
-    vendor = ""
-    date_str = datetime.datetime.now().strftime("%Y-%m-%d")
-
-    text_clean = re.sub(r'<[^>]+>', '\n', text)
-    text_clean = re.sub(r'\n+', '\n', text_clean)
-
-    is_expense = False
-    if "ghi nợ" in text_clean.lower() or "sotienghino" in text_clean.lower() or "trừ" in text_clean.lower():
-        is_expense = True
-
-    amount_match = re.search(r'([\+\-])\s*([0-9.,]+)\s*(VND|VNĐ|đ)', text_clean, re.IGNORECASE)
-    if amount_match:
-        sign = amount_match.group(1)
-        if sign == '-': is_expense = True
-        amount_str = amount_match.group(2).replace(',', '').replace('.', '')
-        try: amount = float(amount_str)
-        except ValueError: pass
-    else:
-        amount_match = re.search(r'(Số tiền giao dịch|SotienghiCO|SotienghiNO|Amount|Số tiền trích nợ:|Số tiền ghi có:|Khoản thanh toán|Số tiền)(?:[\s\w]*Amount)?\s*([\+\-])?\s*([0-9.,]+)', text_clean, re.IGNORECASE)
-        if amount_match:
-            if amount_match.group(2) == '-' or "sotienghino" in amount_match.group(1).lower() or "trích nợ" in amount_match.group(1).lower():
-                is_expense = True
-            elif "khoản thanh toán" in amount_match.group(1).lower() or "số tiền" in amount_match.group(1).lower():
-                is_expense = True
-            amount_str = amount_match.group(3).replace(',', '').replace('.', '')
-            try: amount = float(amount_str)
-            except ValueError: pass
-        else:
-            amount_match = re.search(r'Charged:\s*[₫đ]?\s*([0-9.,]+)', text_clean, re.IGNORECASE)
-            if amount_match:
-                is_expense = True
-                amount_str = amount_match.group(1).replace(',', '').replace('.', '')
-                try: amount = float(amount_str)
-                except ValueError: pass
-
-    trans_type = "expense" if is_expense else "income"
-    if amount == 0:
-        trans_type = "unknown"
-
-    note_match = re.search(r'(Nội dung|Noidung|Description|Chi tiết):\s*(.*)', text_clean, re.IGNORECASE)
-    if note_match:
-        note = note_match.group(2).strip()
-    else:
-        vp_note_match = re.search(r'Changed Amount\s*\n(.*?)\nNội dung/\s*Transaction Content', text_clean, re.IGNORECASE)
-        if vp_note_match:
-            note = vp_note_match.group(1).strip()
-        else:
-            vp_note_match2 = re.search(r'Nội dung/\s*Transaction Content\s*\n(.*?)\n', text_clean, re.IGNORECASE)
-            if vp_note_match2:
-                note = vp_note_match2.group(1).strip()
-            else:
-                vp_neo_match = re.search(r'Nội dung chuyển tiền:\s*(.*?)\s*Details of Payment', text_clean, re.IGNORECASE|re.DOTALL)
-                if vp_neo_match:
-                    note = vp_neo_match.group(1).strip()
-                else:
-                    vp_credit_match = re.search(r'(The \d{4}x+\d{4} GD thanh toan tai.*)', text_clean, re.IGNORECASE)
-                    if vp_credit_match:
-                        note = vp_credit_match.group(1).strip()
-                    else:
-                        vp_credit_match2 = re.search(r'(GD thanh toan tai.*)', text_clean, re.IGNORECASE)
-                        if vp_credit_match2:
-                            note = vp_credit_match2.group(1).strip()
-
-    payee_match = re.search(r'thanh toan tai\s+([A-Za-z0-9\s]+)', note, re.IGNORECASE)
-    if payee_match:
-        vendor = payee_match.group(1).strip()
-    else:
-        neo_payee_match = re.search(r'Tên người hưởng:\s*(.*?)\s*Beneficiary Name', text_clean, re.IGNORECASE|re.DOTALL)
-        if neo_payee_match:
-            vendor = neo_payee_match.group(1).strip()
-        else:
-            momo_vendor_match = re.search(r'Dịch vụ\s*\n\s*(.*?)\s*\n', text_clean, re.IGNORECASE)
-            if momo_vendor_match:
-                vendor = momo_vendor_match.group(1).strip()
-
-    if not vendor:
-        if "vpb.neo" in email_from or "vpbankonline" in email_from: vendor = "VPBank"
-        elif "momo" in email_from: vendor = "MoMo"
-        elif "canva" in email_from.lower(): vendor = "Canva"
-
-    date_match = re.search(r'(\d{2})[-/](\d{2})[-/](\d{4})', text_clean)
-    if date_match:
-        date_str = f"{date_match.group(3)}-{date_match.group(2)}-{date_match.group(1)}"
-
-    return trans_type, amount, vendor, note, date_str
-
-def apply_gmail_label(client, msg_id, label_name="Finance_Checked"):
-    if not client or not msg_id:
-        return
-    try:
-        res = client.tools.execute(slug='gmail_list_labels', arguments={}, user_id='default_user', dangerously_skip_version_check=True)
-        label_id = None
-        if res.get('successful'):
-            labels = res['data'].get('labels', [])
-            for lbl in labels:
-                if lbl['name'] == label_name:
-                    label_id = lbl['id']
-                    break
-        if not label_id:
-            res_create = client.tools.execute(slug='gmail_create_label', arguments={'name': label_name, 'labelListVisibility': 'labelShow', 'messageListVisibility': 'show'}, user_id='default_user', dangerously_skip_version_check=True)
-            if res_create.get('successful'):
-                label_id = res_create['data'].get('id')
-        if label_id:
-            client.tools.execute(slug='gmail_add_label_to_email', arguments={'message_id': msg_id, 'label_id': label_id}, user_id='default_user', dangerously_skip_version_check=True)
-        try:
-            client.tools.execute(slug='gmail_add_label_to_email', arguments={'message_id': msg_id, 'removeLabelIds': ['UNREAD']}, user_id='default_user', dangerously_skip_version_check=True)
-        except Exception:
-            pass
-    except Exception:
-        pass
-
-def get_active_projects():
-    """Fetch active projects from DB to feed into AI context"""
-    res = execute_query("SELECT id, name, client FROM projects WHERE status != 'Hoàn thành'", fetch=True)
-    return res if res else []
-
-def normalize_text(text):
-    if not text: return ""
-    import unicodedata
-    return unicodedata.normalize('NFD', text).encode('ascii', 'ignore').decode('utf-8').strip().lower()
-
-def get_payees():
-    """Fetch known payees from DB"""
-    res = execute_query("SELECT vendor, alias, default_category, default_project, default_method, ai_metadata FROM payees", fetch=True)
-    if not res: return {}
-    payees_map = {}
-    for p in res:
-        payees_map[normalize_text(p['vendor'])] = p
-        if p.get('alias'):
-            for al in p['alias'].split(','):
-                payees_map[normalize_text(al)] = p
-    return payees_map
-
 
 def get_composio_share_link(local_path):
     import os
@@ -182,75 +46,93 @@ def get_composio_share_link(local_path):
         
     return local_path
 
-def process_transaction(date, amount, vendor, note, payees_map, active_projects, trans_type="expense"):
-    v_lower = normalize_text(vendor)
-    project = "Không rõ"
-    category = "Khác"
-    need_task = True
-    
+def process_transaction(date, amount, vendor, note, payees_map, active_projects, trans_type="expense", transaction_code=None, parsed_paymentmethod=None):
     if trans_type == "income":
-        category = "Income"
-        project = "Không rõ"
-    else:
-        # 1. Trực tiếp từ bảng Payee
-        matched_p = None
-        if v_lower in payees_map:
-            matched_p = payees_map[v_lower]
-        else:
-            for alias_key, p_info in payees_map.items():
-                if len(alias_key) >= 3 and alias_key in v_lower:
-                    matched_p = p_info
-                    break
-
-        if matched_p:
-            p_info = matched_p
-            vendor = p_info.get("vendor", vendor)
-            category = p_info.get("default_category", "Khác")
-            project = p_info.get("default_project", "Không rõ")
-            need_task = False
-        else:
-            # BÁO CÁO CHO AGENT (KHÔNG GỌI GEMINI API CỨNG)
-            return {
-                "status": "pending_ai",
-                "vendor": vendor,
-                "amount": amount,
-                "note": note,
-                "date": date,
-                "trans_type": trans_type,
-                "projects_list": active_projects,
-                "message": f"AGENT_ACTION_REQUIRED: Please deduce project and category for vendor '{vendor}' and run SQL to insert."
-            }
-
-    # Ghi sổ với Payee đã biết
-    uid_str = f"{date}_{vendor}_{amount}".encode('utf-8')
-    
-    if trans_type == "income":
-        t_id = "inc_" + hashlib.md5(uid_str).hexdigest()[:12]
         net_amount = int(amount / 1.08)
+        uid_str = f"{date}_{vendor}_{amount}".encode('utf-8')
+        if transaction_code:
+            t_id = "inc_" + transaction_code.replace("/", "_")
+        else:
+            t_id = "inc_" + hashlib.md5(uid_str).hexdigest()[:12]
+            
+        # Check if transaction already exists
+        existing = execute_query("SELECT id FROM incomes WHERE id = %s", (t_id,), fetch=True)
+        if existing:
+            return {"status": "success", "message": "Transaction already exists, skipped."}
+            
         execute_query("""
             INSERT INTO incomes (id, date, project, projectid, amount, notes)
             VALUES (%s, %s, %s, %s, %s, %s)
             ON CONFLICT (id) DO NOTHING
-        """, (t_id, date, project, None, net_amount, note))
+        """, (t_id, date, None, None, net_amount, note))
+        return {
+            "status": "success", 
+            "message": "Saved income transaction.",
+            "amount": amount,
+            "vendor": vendor,
+            "note": note,
+            "category": "Income",
+            "project_id": None
+        }
     else:
-        t_id = "exp_" + hashlib.md5(uid_str).hexdigest()[:12]
-        execute_query("""
-            INSERT INTO expenseTransactions (id, date, vendor, amount, project, category, description)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (id) DO NOTHING
-        """, (t_id, date, vendor, amount, project, category, note))
-    
-    # Tạo task nếu thiếu thông tin
-    if need_task:
-        task_id = f"act_{uuid.uuid4().hex[:8]}"
-        task_title = f"Bổ sung thông tin khoản {'thu' if trans_type=='income' else 'chi'} {amount:,} VND {'từ' if trans_type=='income' else 'cho'} {vendor} ({note})"
+        # Business Rules Router ("Điểm đặc biệt" & Form Matching)
+        smart_res = classify_expense_smart_rules(
+            date_str=date,
+            amount=amount,
+            vendor=vendor,
+            note=note,
+            payees_map=payees_map,
+            active_projects=active_projects,
+            parsed_paymentmethod=parsed_paymentmethod
+        )
+        category = smart_res["category"]
+        project_id = smart_res["project_id"]
+        paymentmethod = smart_res["paymentmethod"]
+        vendor_final = smart_res["vendor"]
+        note_final = smart_res["description"]
+        auto_classified = smart_res["auto_classified"]
+        rule_matched = smart_res["rule_matched"]
         
+        uid_str = f"{date}_{vendor}_{amount}".encode('utf-8')
+        if transaction_code:
+            t_id = "exp_" + transaction_code.replace("/", "_")
+        else:
+            t_id = "exp_" + hashlib.md5(uid_str).hexdigest()[:12]
+            
+        # Check if transaction already exists
+        existing = execute_query("SELECT id FROM expenseTransactions WHERE id = %s", (t_id,), fetch=True)
+        if existing:
+            return {"status": "success", "message": "Transaction already exists, skipped."}
+            
         execute_query("""
-            INSERT INTO actions (id, priorityOrder, title, project, priorityLevel, suggestedAgent, status, category)
+            INSERT INTO expenseTransactions (id, date, vendor, amount, projectid, category, description, paymentmethod)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (task_id, 1, task_title, project, "High", "Minh Thu", "Pending", "work"))
+            ON CONFLICT (id) DO NOTHING
+        """, (t_id, date, vendor_final, amount, project_id, category, note_final, paymentmethod))
         
-    return {"status": "success", "message": "Saved known transaction automatically."}
+        if not auto_classified:
+            return {
+                "status": "pending_ai",
+                "message": f"Cần sếp phân loại ({rule_matched})",
+                "amount": amount,
+                "vendor": vendor_final,
+                "note": note_final,
+                "category": category,
+                "project_id": project_id,
+                "rule_matched": rule_matched,
+                "t_id": t_id
+            }
+            
+        return {
+            "status": "success",
+            "message": f"Tự động lưu theo {rule_matched}",
+            "amount": amount,
+            "vendor": vendor_final,
+            "note": note_final,
+            "category": category,
+            "project_id": project_id,
+            "rule_matched": rule_matched
+        }
 
 def scan_mail():
     load_dotenv(dotenv_path=ENV_PATH)
@@ -264,10 +146,10 @@ def scan_mail():
     except Exception as e:
         return {"status": "error", "message": f"Lỗi khởi tạo Composio: {e}"}
 
-    gmail_query = "(from:vpb.neo@vpbank.com.vn OR from:vpbankonline@vpb.com.vn OR from:no-reply@momo.vn) -label:Finance_Checked"
+    gmail_query = "(from:vpb.neo@vpbank.com.vn OR from:vpbankonline@vpb.com.vn OR from:*@care.vpb.com.vn OR from:no-reply@momo.vn OR from:*@canva.com) -label:Finance_Checked newer_than:30d"
     emails = []
     try:
-        res = client.tools.execute(slug="gmail_fetch_emails", arguments={"q": gmail_query, "maxResults": 20}, user_id="default_user", dangerously_skip_version_check=True)
+        res = client.tools.execute(slug="gmail_fetch_emails", arguments={"query": gmail_query, "maxResults": 30}, user_id="default_user", dangerously_skip_version_check=True)
         if isinstance(res, dict) and "data" in res:
             emails = res.get("data", [])
             if isinstance(emails, dict) and "messages" in emails: emails = emails["messages"]
@@ -281,37 +163,67 @@ def scan_mail():
 
     processed_count = 0
     pending_agents_tasks = []
+    successful_transactions = []
 
     for email in emails:
         msg_id = email.get("messageId") or email.get("id", "unknown")
         subject = email.get("subject", "")
         snippet = email.get("snippet", "")
         text_content = email.get("messageText", "")
+        if not text_content and "payload" in email:
+            import base64
+            p = email.get("payload", {})
+            b64_data = ""
+            if p.get("body", {}).get("data"):
+                b64_data = p["body"]["data"]
+            elif p.get("parts"):
+                for part in p["parts"]:
+                    if part.get("body", {}).get("data"):
+                        b64_data = part["body"]["data"]
+                        break
+            if b64_data:
+                try:
+                    html = base64.urlsafe_b64decode(b64_data + "===").decode("utf-8", errors="ignore")
+                    text_content = re.sub(r"<[^<]+?>", " ", html)
+                except Exception:
+                    pass
         
         headers = email.get("headers", {})
-        email_from = ""
-        if isinstance(headers, list):
-            for h in headers:
-                if h.get("name", "").lower() == "from": email_from = h.get("value", "")
-        elif isinstance(headers, dict):
-            email_from = headers.get("From", headers.get("from", ""))
+        email_from = email.get("sender", "")
+        if not email_from:
+            if isinstance(headers, list):
+                for h in headers:
+                    if h.get("name", "").lower() == "from": email_from = h.get("value", "")
+            elif isinstance(headers, dict):
+                email_from = headers.get("From", headers.get("from", ""))
 
         full_text = f"{subject}\n{snippet}\n{text_content}"
-        trans_type, amount, vendor, note, date_str = extract_raw_transaction(full_text, email_from)
+        trans_type, amount, vendor, note, date_str, transaction_code, parsed_paymentmethod = extract_raw_transaction(full_text, email_from)
         
         if amount <= 0: continue
         
-        res = process_transaction(date_str, amount, vendor, note, payees_map, active_projects, trans_type=trans_type)
-        if res.get("status") == "pending_ai":
-            pending_agents_tasks.append(res)
+        res = process_transaction(date_str, amount, vendor, note, payees_map, active_projects, trans_type=trans_type, transaction_code=transaction_code, parsed_paymentmethod=parsed_paymentmethod)
+        if res:
+            if res.get("status") == "pending_ai":
+                pending_agents_tasks.append(res)
+            elif res.get("status") == "success" and "skipped" not in res.get("message", ""):
+                successful_transactions.append({
+                    "amount": amount,
+                    "vendor": res.get("vendor", vendor),
+                    "note": res.get("note", note),
+                    "category": res.get("category", "Chưa rõ"),
+                    "project_id": res.get("project_id", "Chưa rõ"),
+                    "message": res.get("message")
+                })
         
-        # apply_gmail_label(client, msg_id, "Finance_Checked") # Optional: uncomment if wanting to label local checks
+        apply_gmail_label(client, msg_id, "Finance_Checked") # Optional: uncomment if wanting to label local checks
         processed_count += 1
         
     output = {
         "status": "success", 
         "message": f"Đã quét {processed_count} email thành công.",
-        "pending_ai_tasks": pending_agents_tasks
+        "pending_ai_tasks": pending_agents_tasks,
+        "successful_transactions": successful_transactions
     }
     return output
 
@@ -331,15 +243,18 @@ def generate_contract(project_id, doc_type):
     draft_content = doc[0]['content']
 
     # Đường dẫn
-    template_dir = r"g:\My Drive\[ANPHIM] MASTER PLANN\03_LEGAL\TEMPLATES"
+    template_dir = r"G:\My Drive\[ANPHIM] MASTER PLANN\00_COMPANY_MASTER\Template"
     if doc_type.upper() == "QUOTE":
-        template_path = os.path.join(template_dir, "00. Bao_Gia_Mau.docx")
+        template_path = os.path.join(template_dir, "[000026]_Nhóm 2_AI FILM_quotation.xlsx")
         prefix = "BaoGia"
+    elif doc_type.upper() == "ADVANCE":
+        template_path = os.path.join(template_dir, "[270526] ĐỀ NGHỊ TẠM ỨNG_ Template.docx")
+        prefix = "DeNghiTamUng"
     else:
-        template_path = os.path.join(template_dir, "01. Hop_Dong_Dich_Vu.docx")
+        template_path = os.path.join(template_dir, "[280526]_HĐDV_Sản xuất Template.docx")
         prefix = "HopDong"
         
-    out_dir = rf"g:\My Drive\[ANPHIM] MASTER PLANN\02_PROJECTS\{project_name}\documents"
+    out_dir = rf"g:\My Drive\[ANPHIM] MASTER PLANN\02_PROJECTs\{client_name}\{project_name}\documents"
     os.makedirs(out_dir, exist_ok=True)
     
     out_filename = f"{prefix}_{project_name}_{datetime.datetime.now().strftime('%Y%m%d')}.docx"
@@ -347,15 +262,128 @@ def generate_contract(project_id, doc_type):
 
     try:
         from docxtpl import DocxTemplate
+        
+        import json
+        try:
+            draft_json = json.loads(draft_content)
+            items = draft_json.get('items', [])
+        except:
+            items = []
+        
+        grand_total = sum(item.get('total', 0) for item in items) * 1.08 # Add 8% VAT
+        
+        # Payment terms logic
+        if grand_total < 30000000:
+            phan_tram_dot_1, phan_tram_dot_2, phan_tram_dot_3 = 100, 0, 0
+        elif grand_total <= 100000000:
+            phan_tram_dot_1, phan_tram_dot_2, phan_tram_dot_3 = 50, 50, 0
+        else:
+            phan_tram_dot_1, phan_tram_dot_2, phan_tram_dot_3 = 50, 40, 10
+            
+        hang_muc = "Dịch vụ AI Video"
+        
+        client_info = execute_query("SELECT * FROM clients WHERE name ILIKE %s OR id ILIKE %s", (f"%{client_name}%", f"%{client_name}%"), fetch=True)
+        if client_info:
+            c = client_info[0]
+            c_name = c.get('name') or client_name
+            c_address = c.get('address') or "..."
+            c_tax_id = c.get('tax_id') or "..."
+            c_rep_name = c.get('rep_name') or "..."
+            c_rep_role = c.get('rep_role') or "..."
+        else:
+            c_name = client_name
+            c_address = "..."
+            c_tax_id = "..."
+            c_rep_name = "..."
+            c_rep_role = "..."
+            
         doc = DocxTemplate(template_path)
+        
+        tam_ung = int(grand_total * phan_tram_dot_1 / 100)
+        
         context = {
             "TEN_DU_AN": project_name,
-            "KHACH_HANG": client_name,
-            "NOI_DUNG_BAO_GIA": draft_content,
-            "NGAY_THANG": datetime.datetime.now().strftime("%d/%m/%Y")
+            "MA_DU_AN": f"VR{datetime.datetime.now().strftime('%m%d')}",
+            "KHACH_HANG": c_name,
+            "TEN_CONG_TY_A": c_name,
+            "DIA_CHI_A": c_address,
+            "MA_SO_THUE_A": c_tax_id,
+            "DAI_DIEN_A": c_rep_name,
+            "CHUC_VU_A": c_rep_role,
+            "HANG_MUC": hang_muc,
+            "NGAY_THANG_NAM_SO": datetime.datetime.now().strftime("%d/%m/%Y"),
+            "NGAY_THANG_NAM_CHU": f"{datetime.datetime.now().strftime('%d')} tháng {datetime.datetime.now().strftime('%m')} năm {datetime.datetime.now().strftime('%Y')}",
+            "SO_LUONG_SAN_PHAM": "4",
+            "TONG_GIA_TRI_SO_CHUA_VAT": "{:,.0f}".format(sum(item.get('total', 0) for item in items)).replace(",", "."),
+            "VAT_SO": "{:,.0f}".format(sum(item.get('total', 0) for item in items) * 0.08).replace(",", "."),
+            "TONG_GIA_TRI_SO": "{:,.0f}".format(grand_total).replace(",", "."),
+            "TONG_GIA_TRI_CHU": "...",
+            "PHAN_TRAM_DOT_1": phan_tram_dot_1,
+            "PHAN_TRAM_DOT_2": phan_tram_dot_2,
+            "PHAN_TRAM_DOT_3": phan_tram_dot_3,
+            "DOT_1_SO": "{:,.0f}".format(tam_ung).replace(",", "."),
+            "DOT_2_SO": "{:,.0f}".format(int(grand_total * phan_tram_dot_2 / 100)).replace(",", "."),
+            "DOT_3_SO": "{:,.0f}".format(int(grand_total * phan_tram_dot_3 / 100)).replace(",", "."),
+            "DOT_1_CHU": "...",
+            "DOT_2_CHU": "...",
+            "DOT_3_CHU": "..."
         }
         doc.render(context)
         doc.save(out_path)
+        
+        # Manually fill the table to bypass docxtpl issues
+        from docx import Document
+        out_doc = Document(out_path)
+        target_table = None
+        for table in out_doc.tables:
+            try:
+                if "PHẠM VI DỊCH VỤ" in table.rows[0].cells[0].text.upper():
+                    target_table = table
+                    break
+            except: pass
+            
+        if target_table:
+            while len(target_table.rows) > 1:
+                target_table._tbl.remove(target_table.rows[1]._tr)
+            
+            for item in items:
+                r = target_table.add_row()
+                r.cells[0].text = item.get('name', '')
+                r.cells[1].text = "gói"
+                r.cells[2].text = "{:,.0f}".format(item.get('qty', 1)).replace(",", ".")
+                r.cells[3].text = "{:,.0f}".format(item.get('price', 0)).replace(",", ".")
+                r.cells[4].text = "{:,.0f}".format(item.get('total', 0)).replace(",", ".")
+                
+            # Totals
+            r = target_table.add_row()
+            r.cells[0].merge(r.cells[3])
+            r.cells[0].text = "TỔNG CỘNG"
+            r.cells[4].text = "{:,.0f}".format(sum(item.get('total', 0) for item in items)).replace(",", ".")
+            
+            r = target_table.add_row()
+            r.cells[0].merge(r.cells[3])
+            r.cells[0].text = "Thuế VAT 8%"
+            r.cells[4].text = "{:,.0f}".format(sum(item.get('total', 0) for item in items) * 0.08).replace(",", ".")
+            
+            r = target_table.add_row()
+            r.cells[0].merge(r.cells[3])
+            r.cells[0].text = "TỔNG CỘNG SAU THUẾ"
+            r.cells[4].text = "{:,.0f}".format(grand_total).replace(",", ".")
+            
+        # Clean up empty payment stage 3 if not applicable
+        if phan_tram_dot_3 == 0:
+            to_delete = []
+            for p in out_doc.paragraphs:
+                if "Đợt 3: Thanh toán  0%" in p.text or "Đợt 3: Thanh toán 0%" in p.text:
+                    to_delete.append(p)
+                elif "Hóa đơn giá trị gia tăng hợp lệ tương ứng giá trị Hợp đồng còn lại của Hợp đồng" in p.text:
+                    to_delete.append(p)
+            for p in to_delete:
+                try:
+                    p._element.getparent().remove(p._element)
+                except: pass
+                
+        out_doc.save(out_path)
         
         # Cập nhật projectdocuments (Bật true cả 2 cột theo ý sếp)
         execute_query("""
@@ -367,7 +395,6 @@ def generate_contract(project_id, doc_type):
         # Cập nhật Project_SOW
         sow_id = f"sow_{project_id}"
         payment_terms_str = f"Đợt 1: {phan_tram_dot_1}%, Đợt 2: {phan_tram_dot_2}%, Đợt 3: {phan_tram_dot_3}%"
-        import json
         items_json = json.dumps(items, ensure_ascii=False)
         try:
             execute_query("""

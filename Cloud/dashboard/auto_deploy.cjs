@@ -16,7 +16,7 @@ setInterval(() => {
                 console.log(`[${new Date().toISOString()}] Detected ${count} new commits! Triggering deployment...`);
                 
                 // 3. Trigger deployment
-                exec('bash ~/an-phim-workspace/dashboard/deploy.sh', (err3, stdout3, stderr3) => {
+                exec('bash ~/an-phim-workspace/Cloud/dashboard/deploy.sh 2>/dev/null || bash ~/an-phim-workspace/dashboard/deploy.sh', (err3, stdout3, stderr3) => {
                     if (err3) {
                         console.error('Deployment failed:', stderr3);
                     } else {

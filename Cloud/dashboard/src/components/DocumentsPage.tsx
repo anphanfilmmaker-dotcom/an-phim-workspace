@@ -253,14 +253,14 @@ export default function DocumentsPage({
                       ];
 
                       const isComplete = docs.every(d => d.completed);
-                      const displayStatus = docSet.overallStatus || (isComplete ? "đã đủ" : "Chưa có");
+                      const displayStatus = docSet.overallStatus || (isComplete ? "Đã đủ" : "Chưa có");
 
                       return (
                         <div>
                           <div className="flex items-center justify-between mb-3">
                             <span className="block text-[10px] font-mono text-neutral-500 uppercase">DOCUMENT CHECKLIST</span>
                             <select 
-                              className="bg-[#171b21] border border-neutral-700 hover:border-neutral-500 text-[10px] text-neutral-300 rounded outline-none px-1.5 py-0.5 cursor-pointer appearance-none transition max-w-[100px]"
+                              className="bg-[#171b21] border border-neutral-700 text-[10px] text-neutral-300 rounded outline-none px-1.5 py-0.5 appearance-none max-w-[100px] hover:border-neutral-500 cursor-pointer transition"
                               value={displayStatus}
                               onChange={(e) => {
                                  const val = e.target.value;
@@ -270,9 +270,9 @@ export default function DocumentsPage({
                               <option value="Chưa có">Chưa có</option>
                               <option value="Đã kí">Đã kí</option>
                               <option value="Chờ kí">Chờ kí</option>
-                              <option value="đã gửi">Đã gửi</option>
-                              <option value="đã đủ">Đã đủ</option>
-                              <option value="chờ đợt 2">Chờ đợt 2</option>
+                              <option value="Đã gửi">Đã gửi</option>
+                              <option value="Đã đủ">Đã đủ</option>
+                              <option value="Chờ đợt 2">Chờ đợt 2</option>
                             </select>
                           </div>
                           <div className="space-y-2 text-[10px] font-mono">

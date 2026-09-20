@@ -4,10 +4,10 @@
  */
 
 // Define project status types
-export type ProjectStatus = "Chưa bắt đầu" | "Đang làm" | "Chờ feedback" | "Cần revise" | "Hoàn thành" | "Tạm dừng";
+export type ProjectStatus = "Chưa bắt đầu" | "Đang làm" | "Chờ feedback" | "Cần revise" | "Hoàn thành" | "Tạm dừng" | "Hidden";
 
 // Define project types
-export type ProjectType = "AI Render" | "Marketing" | "AI image" | "AI Film" | "VFX" | "Graphic" | "Script" | "Video";
+export type ProjectType = "AI Render" | "Marketing" | "AI Image" | "AI Film" | "VFX" | "Graphic" | "Script" | "Video" | "Event" | "Internal";
 
 // Define document status types
 export type DocStatus = "Signed" | "Missing" | "Pending" | "Approved";
@@ -46,7 +46,7 @@ export interface CashFlowPoint {
 
 // Structuring an expense item
 export interface ExpenseCategoryItem {
-  category: "Freelancer" | "AI Tools" | "Production" | "Equipment" | "Sales" | "Food/Meeting" | "Marketing" | "Office/Admin" | "Taxe/Fees" | "Personal" | "Others" | string;
+  category: "Freelancer" | "AI / Tools" | "Production" | "Equipment" | "Sales" | "Food/Meeting" | "Marketing" | "Office/Admin" | "Taxe/Fees" | "Personal" | "Others" | string;
   amount: number; // in VND
   percentage: number; // e.g. 48
   color: string; // Tailwind color class or hex

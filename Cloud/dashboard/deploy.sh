@@ -20,7 +20,11 @@ git reset --hard origin/main
 
 # 3. Cài đặt thư viện và Build giao diện mới
 echo "🔨 Đang Build giao diện mới..."
-cd dashboard || exit
+if [ -d "Cloud/dashboard" ]; then
+    cd Cloud/dashboard || exit
+else
+    cd dashboard || exit
+fi
 npm install
 npm run build
 

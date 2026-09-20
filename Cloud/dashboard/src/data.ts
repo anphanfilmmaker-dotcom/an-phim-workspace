@@ -49,10 +49,15 @@ const mappedProjects: Project[] = rawExcel.projects
   const projectTypeMap: Record<string, ProjectType> = {
     "AI Render": "AI Render",
     "Marketing": "Marketing",
-    "AI Image": "AI image",
+    "AI Image": "AI Image",
+    "AI image": "AI Image",
     "AI Film": "AI Film",
     "Script": "Script",
-    "Graphic": "Graphic"
+    "Graphic": "Graphic",
+    "VFX": "VFX",
+    "Video": "Video",
+    "Event": "Event",
+    "Internal": "Internal"
   };
 
   const status = statusMap[p["Stage Status"]] || "Chưa bắt đầu";
@@ -105,7 +110,7 @@ const mappedExpenses: ExpenseTransaction[] = rawExcel.expense
   
   // Standardize category strings to match our UI
   let cat = e["Expense Category"] || "Others";
-  if (cat === "AI tools") cat = "AI Tools";
+  if (cat === "AI tools" || cat === "AI Tools" || cat === "Software / SaaS") cat = "AI / Tools";
   if (cat === "Tax / Fees") cat = "Taxe/Fees";
   if (cat === "Office / Admin") cat = "Office/Admin";
 

@@ -170,6 +170,48 @@ const dbRun = (sql, params = []) => {
   });
 };
 
+// Validation & Normalization Helpers for PostgreSQL Constraints
+const VALID_PROJECT_TYPES = [
+  'AI Render', 'Marketing', 'AI Image', 'AI Film', 'VFX', 'Graphic', 'Script', 'Video', 'Event', 'Internal'
+];
+
+function normalizeProjectType(val) {
+  if (!val || typeof val !== 'string') return 'Video';
+  const clean = val.trim();
+  const exact = VALID_PROJECT_TYPES.find(t => t.toLowerCase() === clean.toLowerCase());
+  if (exact) return exact;
+  const lower = clean.toLowerCase();
+  if (lower.includes('image') || lower.includes('ảnh') || lower.includes('anh')) return 'AI Image';
+  if (lower.includes('film') || lower.includes('phim')) return 'AI Film';
+  if (lower.includes('render')) return 'AI Render';
+  if (lower.includes('market')) return 'Marketing';
+  if (lower.includes('vfx') || lower.includes('hiệu ứng')) return 'VFX';
+  if (lower.includes('graphic') || lower.includes('đồ họa') || lower.includes('do hoa')) return 'Graphic';
+  if (lower.includes('script') || lower.includes('kịch bản')) return 'Script';
+  if (lower.includes('event') || lower.includes('sự kiện')) return 'Event';
+  if (lower.includes('internal') || lower.includes('nội bộ')) return 'Internal';
+  return 'Video';
+}
+
+const VALID_PROJECT_STATUSES = [
+  'Chưa bắt đầu', 'Đang làm', 'Chờ feedback', 'Cần revise', 'Hoàn thành', 'Tạm dừng', 'Hidden'
+];
+
+function normalizeProjectStatus(val) {
+  if (!val || typeof val !== 'string') return 'Chưa bắt đầu';
+  const clean = val.trim();
+  const exact = VALID_PROJECT_STATUSES.find(s => s.toLowerCase() === clean.toLowerCase());
+  if (exact) return exact;
+  const lower = clean.toLowerCase();
+  if (lower.includes('làm') || lower.includes('progress') || lower.includes('doing') || lower.includes('active')) return 'Đang làm';
+  if (lower.includes('feedback')) return 'Chờ feedback';
+  if (lower.includes('revise') || lower.includes('sửa')) return 'Cần revise';
+  if (lower.includes('hoàn') || lower.includes('done') || lower.includes('complete')) return 'Hoàn thành';
+  if (lower.includes('tạm') || lower.includes('dừng') || lower.includes('hold') || lower.includes('pause')) return 'Tạm dừng';
+  if (lower.includes('ẩn') || lower.includes('hidden')) return 'Hidden';
+  return 'Chưa bắt đầu';
+}
+
 // Create tables schemas
 async function initDb() {
   const sqliteSchemas = [
@@ -584,10 +626,12 @@ app.put('/api/projects/:id', async (req, res) => {
 app.post('/api/projects', async (req, res) => {
   try {
     const p = req.body;
+    const projectType = normalizeProjectType(p.projectType || p.projecttype);
+    const status = normalizeProjectStatus(p.status);
     await dbRun(
       `INSERT INTO projects (id, name, client, status, budget, received, dueDate, nextAction, nextActionDue, projectType, paymentD1, paymentD2, paymentD3, milestones, paymentPhase, paymentPhaseProgress, thumbnailUrl, notes) 
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [p.id, p.name, p.client, p.status, p.budget, p.received, p.dueDate, p.nextAction, p.nextActionDue, p.projectType, p.paymentD1, p.paymentD2, p.paymentD3, JSON.stringify(p.milestones), p.paymentPhase, p.paymentPhaseProgress, p.thumbnailUrl, p.notes]
+      [p.id, p.name, p.client, status, p.budget, p.received, p.dueDate, p.nextAction, p.nextActionDue, projectType, p.paymentD1, p.paymentD2, p.paymentD3, JSON.stringify(p.milestones), p.paymentPhase, p.paymentPhaseProgress, p.thumbnailUrl, p.notes]
     );
     
     // Auto-seed projectdocuments row for the new project
@@ -795,15 +839,24 @@ app.patch('/api/projects/:id', async (req, res) => {
     // Dynamic update builder
     let query = "UPDATE projects SET ";
     let values = [];
-    for (const [key, val] of Object.entries(updates)) {
+    for (let [key, val] of Object.entries(updates)) {
       // Lowercase key because postgres columns were created without quotes (case folded to lower)
       const colName = key.toLowerCase();
-      // Ignore some camelCase props that aren't columns or should be skipped
-      if (['projectname', 'totalexpenses', 'paymentphase', 'paymentphaseprogress'].includes(colName)) continue;
+      // Ignore id and some camelCase props that aren't columns or should be skipped
+      if (['id', 'projectname', 'totalexpenses', 'paymentphase', 'paymentphaseprogress'].includes(colName)) continue;
+      
+      if (colName === 'projecttype') {
+        val = normalizeProjectType(val);
+      } else if (colName === 'status') {
+        val = normalizeProjectStatus(val);
+      }
       
       query += `"${colName}" = ?, `;
       values.push(typeof val === 'object' ? JSON.stringify(val) : val);
     }
+    
+    if (values.length === 0) return res.json({ success: true });
+    
     // Remove last comma and space
     query = query.slice(0, -2) + ` WHERE id = ?`;
     values.push(req.params.id);
@@ -1143,13 +1196,22 @@ app.post('/api/chat', async (req, res) => {
           const { id, updates } = call.args;
           let query = "UPDATE projects SET ";
           let values = [];
-          for (const [key, val] of Object.entries(updates)) {
-            query += `"${key}" = ?, `;
+          for (let [key, val] of Object.entries(updates)) {
+            const colName = key.toLowerCase();
+            if (['id', 'projectname', 'totalexpenses', 'paymentphase', 'paymentphaseprogress'].includes(colName)) continue;
+            if (colName === 'projecttype') {
+              val = normalizeProjectType(val);
+            } else if (colName === 'status') {
+              val = normalizeProjectStatus(val);
+            }
+            query += `"${colName}" = ?, `;
             values.push(typeof val === 'object' ? JSON.stringify(val) : val);
           }
-          query = query.slice(0, -2) + ` WHERE id = ?`;
-          values.push(id);
-          await dbRun(query, values);
+          if (values.length > 0) {
+            query = query.slice(0, -2) + ` WHERE id = ?`;
+            values.push(id);
+            await dbRun(query, values);
+          }
           functionResponseText = "Cập nhật dự án thành công.";
         } else if (call.name === 'create_action') {
           const { title, notes } = call.args;

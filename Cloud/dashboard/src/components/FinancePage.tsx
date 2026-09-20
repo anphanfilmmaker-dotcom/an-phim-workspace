@@ -29,7 +29,7 @@ export interface CategoryConfig {
 }
 
 export const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
-  "AI tools":        { bg: "bg-sky-500",     text: "text-sky-400",     tagBg: "bg-sky-950/40",     border: "border-sky-800/40",     hex: "#0ea5e9" },
+  "AI / Tools":        { bg: "bg-sky-500",     text: "text-sky-400",     tagBg: "bg-sky-950/40",     border: "border-sky-800/40",     hex: "#0ea5e9" },
   "Freelancer":      { bg: "bg-pink-500",    text: "text-pink-400",    tagBg: "bg-pink-950/40",    border: "border-pink-800/40",    hex: "#ec4899" },
   "Food / Meeting":  { bg: "bg-amber-500",   text: "text-amber-400",   tagBg: "bg-amber-950/40",   border: "border-amber-800/40",   hex: "#f59e0b" },
   "Shopping":        { bg: "bg-orange-500",  text: "text-orange-400",  tagBg: "bg-orange-950/40",  border: "border-orange-800/40",  hex: "#f97316" },
@@ -38,14 +38,15 @@ export const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
   "Health Care":     { bg: "bg-teal-400",    text: "text-teal-300",    tagBg: "bg-teal-950/40",    border: "border-teal-800/40",    hex: "#2dd4bf" },
   "Marketing":       { bg: "bg-purple-500",  text: "text-purple-400",  tagBg: "bg-purple-950/40",  border: "border-purple-800/40",  hex: "#a855f7" },
   "Sales":           { bg: "bg-yellow-400",  text: "text-yellow-400",  tagBg: "bg-yellow-950/40",  border: "border-yellow-800/40",  hex: "#facc15" },
-  "Software / SaaS": { bg: "bg-indigo-500",  text: "text-indigo-400",  tagBg: "bg-indigo-950/40",  border: "border-indigo-800/40",  hex: "#6366f1" },
   "Vay / Nợ":        { bg: "bg-red-500",     text: "text-red-400",     tagBg: "bg-red-950/40",     border: "border-red-800/40",     hex: "#ef4444" },
   "Tax / Fees":      { bg: "bg-rose-500",    text: "text-rose-400",    tagBg: "bg-rose-950/40",    border: "border-rose-800/40",    hex: "#f43f5e" },
   "Office / Admin":  { bg: "bg-blue-600",    text: "text-blue-400",    tagBg: "bg-blue-950/40",    border: "border-blue-800/40",    hex: "#2563eb" },
+  "Di chuyển":       { bg: "bg-emerald-600", text: "text-emerald-400", tagBg: "bg-emerald-950/40", border: "border-emerald-800/40", hex: "#059669" },
   "Other":           { bg: "bg-slate-400",   text: "text-slate-300",   tagBg: "bg-slate-900/50",   border: "border-slate-700/40",   hex: "#94a3b8" },
 };
 
 export const getCategoryStyles = (cat: string): CategoryConfig => {
+  if (cat === "AI tools" || cat === "AI Tools" || cat === "Software / SaaS") cat = "AI / Tools";
   if (CATEGORY_CONFIG[cat]) return CATEGORY_CONFIG[cat];
   const lower = (cat || "").toLowerCase().replace(/\s+/g, '');
   for (const [key, cfg] of Object.entries(CATEGORY_CONFIG)) {

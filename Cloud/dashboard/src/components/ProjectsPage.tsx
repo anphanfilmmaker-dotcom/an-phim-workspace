@@ -33,12 +33,15 @@ import { translations } from "../translations";
 const PROJECT_TYPE_COLORS: Record<string, string> = {
   "AI Render": "text-blue-400 bg-blue-400/10 border-blue-400/20",
   "Marketing": "text-pink-400 bg-pink-400/10 border-pink-400/20",
+  "AI Image": "text-yellow-400 bg-yellow-400/10 border-yellow-400/20",
   "AI image": "text-yellow-400 bg-yellow-400/10 border-yellow-400/20",
   "AI Film": "text-purple-400 bg-purple-400/10 border-purple-400/20",
   "VFX": "text-orange-400 bg-orange-400/10 border-orange-400/20",
   "Graphic": "text-teal-400 bg-teal-400/10 border-teal-400/20",
   "Script": "text-neutral-300 bg-neutral-400/10 border-neutral-400/20",
   "Video": "text-indigo-400 bg-indigo-400/10 border-indigo-400/20",
+  "Event": "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
+  "Internal": "text-zinc-400 bg-zinc-400/10 border-zinc-400/20",
   "All": "text-white bg-[#171b21] border-[#2b333c]"
 };
 
@@ -222,7 +225,7 @@ export default function ProjectsPage({
   // Aggregate project statistics
   const totalCount = db.projects.length;
   const inProgressCount = db.projects.filter(p => p.status === "Đang làm" || p.status === "Cần revise").length;
-  const waitingCount = db.projects.filter(p => p.status === "Chờ feedback" || p.status === "Tạm dừng").length;
+  const waitingCount = db.projects.filter(p => p.status === "Chờ feedback").length;
   const completedCount = db.projects.filter(p => p.status === "Hoàn thành").length;
 
   const handleSaveNotes = () => {
@@ -395,10 +398,10 @@ export default function ProjectsPage({
         </div>
 
         <div className="bg-[#121417] p-4 rounded-xl border border-[#1e2329]/80">
-          <p className="text-[10px] font-mono text-cyan-400 uppercase tracking-widest">{t.waitingFeedback}</p>
+          <p className="text-[10px] font-mono text-amber-400 uppercase tracking-widest">{t.waitingFeedback}</p>
           <div className="flex items-baseline space-x-1.5 mt-1">
             <h4 className="text-xl font-bold text-white font-sans">{waitingCount}</h4>
-            <span className="text-[10px] text-cyan-400 font-mono">{t.needFeedback}</span>
+            <span className="text-[10px] text-amber-400 font-mono">{t.needFeedback}</span>
           </div>
         </div>
 
@@ -450,12 +453,13 @@ export default function ProjectsPage({
               { value: "All", label: t.allType },
               { value: "AI Render", label: "AI Render" },
               { value: "Marketing", label: "Marketing" },
-              { value: "AI image", label: "AI image" },
+              { value: "AI Image", label: "AI Image" },
               { value: "AI Film", label: "AI Film" },
               { value: "VFX", label: "VFX" },
               { value: "Graphic", label: "Graphic" },
               { value: "Script", label: "Script" },
-              { value: "Video", label: "Video" }
+              { value: "Video", label: "Video" },
+              { value: "Event", label: "Event" }
             ]}
           />
         </div>
@@ -694,12 +698,14 @@ export default function ProjectsPage({
                       options={[
                         { value: "AI Render", label: "AI Render" },
                         { value: "Marketing", label: "Marketing" },
-                        { value: "AI image", label: "AI image" },
+                        { value: "AI Image", label: "AI Image" },
                         { value: "AI Film", label: "AI Film" },
                         { value: "VFX", label: "VFX" },
                         { value: "Graphic", label: "Graphic" },
                         { value: "Script", label: "Script" },
-                        { value: "Video", label: "Video" }
+                        { value: "Video", label: "Video" },
+                        { value: "Event", label: "Event" },
+                        { value: "Internal", label: "Internal" }
                       ]}
                     />
                   </div>
@@ -1030,12 +1036,14 @@ export default function ProjectsPage({
                   >
                     <option value="AI Render">AI Render</option>
                     <option value="Marketing">Marketing</option>
-                    <option value="AI image">AI image</option>
+                    <option value="AI Image">AI Image</option>
                     <option value="AI Film">AI Film</option>
                     <option value="VFX">VFX</option>
                     <option value="Graphic">Graphic</option>
                     <option value="Script">Script</option>
                     <option value="Video">Video</option>
+                    <option value="Event">Event</option>
+                    <option value="Internal">Internal</option>
                   </select>
                 </div>
 

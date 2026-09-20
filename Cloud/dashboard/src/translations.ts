@@ -187,9 +187,9 @@ export const translations: Record<"en" | "vi", SystemTranslation> = {
     // Projects Page
     totalProjects: "Total Projects",
     inProgress: "In Progress",
-    waitingFeedback: "Waiting Client",
+    waitingFeedback: "Waiting Feedback",
     activeCampaigns: "active campaigns",
-    needFeedback: "Need feedback",
+    needFeedback: "Waiting for feedback",
     completedCountText: "projects done",
     searchProjects: "Search project name, client...",
     allStatus: "All Statuses",
@@ -322,9 +322,9 @@ export const translations: Record<"en" | "vi", SystemTranslation> = {
     // Projects Page
     totalProjects: "Tổng Số Dự Án",
     inProgress: "Đang Thực Hiện",
-    waitingFeedback: "Chờ Phản Hồi",
+    waitingFeedback: "Chờ Feedback",
     activeCampaigns: "chiến dịch đang chạy",
-    needFeedback: "Cần phản hồi gấp",
+    needFeedback: "Đang chờ feedback",
     completedCountText: "dự án đã xong",
     searchProjects: "Tìm kiếm tên dự án, đối tác phim...",
     allStatus: "Tất Cả Trạng Thái",

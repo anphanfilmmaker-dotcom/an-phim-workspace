@@ -592,7 +592,7 @@ app.get('/api/db', async (req, res) => {
 // AGENT PROJECT APIs (Phase 2.1)
 app.get('/api/projects/active', async (req, res) => {
   try {
-    const projects = await dbQuery("SELECT id, name, client, status, budget, received, \"dueDate\", \"nextAction\", \"nextActionDue\", \"projectType\" FROM projects WHERE status != 'Hidden' AND status != 'Hoàn thành'");
+    const projects = await dbQuery("SELECT id, name, client, status, budget, received, \"dueDate\", \"nextAction\", \"nextActionDue\", \"projectType\" FROM projects WHERE status != 'Hidden' AND status != 'Hoàn thành' AND status != 'Tạm dừng'");
     res.json({ projects });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -815,7 +815,7 @@ app.delete('/api/agent/:id/history', async (req, res) => {
 // 2. Project Management & Reporting
 app.get('/api/projects/active', async (req, res) => {
   try {
-    const activeProjects = await dbQuery("SELECT * FROM projects WHERE status != 'Completed' AND status != 'Archived'");
+    const activeProjects = await dbQuery("SELECT * FROM projects WHERE status != 'Hidden' AND status != 'Hoàn thành' AND status != 'Tạm dừng'");
     res.json(activeProjects);
   } catch (err) {
     res.status(500).json({ error: err.message });

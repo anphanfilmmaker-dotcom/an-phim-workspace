@@ -260,8 +260,11 @@ export function setStoredSheetData(data: GoogleSheetDB) {
     // Re-calculate some summary metrics dynamically before saving to ensure state consistency
     const updatedData = { ...data };
     
-    // Active projects status counts
-    const activeProjects = updatedData.projects.filter(p => p.status === "Đang làm");
+    // Active projects status counts (bao gồm Đang làm, Chờ feedback, Cần revise; loại trừ Tạm dừng, Hoàn thành, Internal)
+    const activeProjects = updatedData.projects.filter(p => 
+      p.projectType !== 'Internal' && 
+      (p.status === "Đang làm" || p.status === "Chờ feedback" || p.status === "Cần revise")
+    );
     updatedData.dashboard.activeProjectsCount = activeProjects.length;
     
     // Total receivables

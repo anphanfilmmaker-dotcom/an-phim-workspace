@@ -108,6 +108,12 @@ export default function OverviewPage({
   // Missing documents calculation
   const missingDocumentsCount = db.projectDocuments?.filter(p => [p.quote, p.contract, p.vatR1, p.vatR2, p.vatR3, p.liquidation].filter(Boolean).length < 6).length || 0;
 
+  // Active running projects calculation (bao gồm Đang làm, Chờ feedback, Cần revise; loại trừ Tạm dừng, Hoàn thành, Internal)
+  const activeProjectsCount = (db.projects || []).filter(p => 
+    p.projectType !== 'Internal' && 
+    (p.status === "Đang làm" || p.status === "Chờ feedback" || p.status === "Cần revise")
+  ).length;
+
   // Total expense calculation
   const totalExpense = db.expenses.reduce((sum, e) => sum + e.amount, 0);
 
@@ -274,7 +280,7 @@ export default function OverviewPage({
           </div>
           <div>
             <h3 className="text-base sm:text-lg lg:text-xl font-bold font-sans text-white tracking-tight leading-snug">
-              {db.dashboard.activeProjectsCount}
+              {activeProjectsCount}
             </h3>
             <div className="flex items-center space-x-1 mt-0.5 text-[10px] text-[#10B981] font-mono leading-none">
               <span>{lang === "en" ? db.dashboard.activeProjectsChange.replace("so với tuần trước", "vs last week") : db.dashboard.activeProjectsChange.replace("vs last week", "so với tuần trước")}</span>

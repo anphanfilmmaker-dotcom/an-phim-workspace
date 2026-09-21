@@ -201,6 +201,7 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], ag
                   <option value="meeting">{lang === 'en' ? 'Meeting' : 'Họp / Sự kiện'}</option>
                   <option value="work">{lang === 'en' ? 'Work' : 'Công việc'}</option>
                   <option value="personal">{lang === 'en' ? 'Personal' : 'Cá nhân'}</option>
+                  <option value="finance">{lang === 'en' ? 'Finance' : 'Tài chính'}</option>
                   <option value="ai_agent">AI Agent</option>
                   <option value="other">{lang === 'en' ? 'Other' : 'Khác'}</option>
                 </select>
@@ -209,6 +210,7 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], ag
                     category === 'meeting' ? 'bg-[#f97316]' :
                     category === 'work' ? 'bg-[#10B981]' :
                     category === 'personal' ? 'bg-[#06b6d4]' :
+                    category === 'finance' ? 'bg-[#34d399]' :
                     category === 'ai_agent' ? 'bg-[#a855f7]' : 'bg-[#8B949E]'
                   }`}></div>
                 </div>

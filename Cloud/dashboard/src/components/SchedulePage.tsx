@@ -26,6 +26,7 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
     personal: true,
     meeting: true,
     ai_agent: true,
+    finance: true,
     other: true
   });
 
@@ -52,7 +53,7 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
   };
 
   const clearFilters = () => {
-    setFilters({ work: false, personal: false, meeting: false, ai_agent: false, other: false });
+    setFilters({ work: false, personal: false, meeting: false, ai_agent: false, finance: false, other: false });
   };
 
   const events = db.schedule || [];
@@ -63,6 +64,7 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
       case 'personal': return "bg-[#164e63] border-l-2 border-[#06b6d4]";
       case 'meeting': return "bg-[#7c2d12] border-l-2 border-[#f97316]";
       case 'ai_agent': return "bg-[#4c1d95] border-l-2 border-[#a855f7]";
+      case 'finance': return "bg-[#064e3b] border-l-2 border-[#34d399]";
       default: return "bg-[#3f3f46] border-l-2 border-[#a1a1aa]";
     }
   };
@@ -94,7 +96,13 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
     calendarCells.push({ day: i, isCurrentMonth: false, dateStr: `${year}-${String(month + 2).padStart(2, '0')}-${String(i).padStart(2, '0')}` });
   }
 
-  const filteredEvents = events.filter(e => filters[e.category as keyof typeof filters]);
+  const filteredEvents = events.filter(e => {
+    const cat = e.category || 'other';
+    if ((filters as Record<string, boolean>)[cat] !== undefined) {
+      return (filters as Record<string, boolean>)[cat];
+    }
+    return filters.other ?? true;
+  });
   const totalEvents = filteredEvents.length;
   const completedEvents = filteredEvents.filter(e => e.status === 'done').length;
 
@@ -126,7 +134,8 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
                       { key: 'work', label: lang === 'en' ? 'Work' : 'Công việc' },
                       { key: 'personal', label: lang === 'en' ? 'Personal' : 'Cá nhân' },
                       { key: 'meeting', label: lang === 'en' ? 'Meeting' : 'Cuộc họp' },
-                      { key: 'ai_agent', label: lang === 'en' ? 'AI Agent' : 'AI Agent' }
+                      { key: 'ai_agent', label: lang === 'en' ? 'AI Agent' : 'AI Agent' },
+                      { key: 'finance', label: lang === 'en' ? 'Finance' : 'Tài chính' }
                     ].map(f => (
                       <label key={f.key} onClick={() => toggleFilter(f.key as any)} className="flex items-center group cursor-pointer py-1.5 px-2 hover:bg-[#1f2937] rounded-[4px] transition-colors">
                         <div className={`w-3.5 h-3.5 rounded-[3px] flex items-center justify-center transition-colors shrink-0 ${filters[f.key as keyof typeof filters]
@@ -254,6 +263,7 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
                 { key: 'personal', label: lang === 'en' ? 'Personal' : 'Cá nhân', color: 'bg-[#06b6d4]' },
                 { key: 'meeting', label: lang === 'en' ? 'Meeting' : 'Họp/Sự kiện', color: 'bg-[#f97316]' },
                 { key: 'ai_agent', label: lang === 'en' ? 'AI Agent' : 'AI Agent', color: 'bg-[#a855f7]' },
+                { key: 'finance', label: lang === 'en' ? 'Finance' : 'Tài chính', color: 'bg-[#34d399]' },
                 { key: 'other', label: lang === 'en' ? 'Other' : 'Khác', color: 'bg-[#8B949E]' }
               ].map(f => {
                 const count = events.filter(e => e.category === f.key).length;
@@ -427,7 +437,8 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
                             <div className={`w-2 h-2 rounded-full shrink-0 ${event.category === 'work' ? 'bg-[#10B981]' :
                                 event.category === 'personal' ? 'bg-[#06b6d4]' :
                                   event.category === 'meeting' ? 'bg-[#f97316]' :
-                                    event.category === 'ai_agent' ? 'bg-[#a855f7]' : 'bg-[#8B949E]'
+                                    event.category === 'ai_agent' ? 'bg-[#a855f7]' :
+                                      event.category === 'finance' ? 'bg-[#34d399]' : 'bg-[#8B949E]'
                               }`} />
                             <h4 className={`text-[12px] font-bold leading-tight transition-all ${event.status === 'done' ? 'text-[#8B949E] line-through' : 'text-[#F5F7FA]'}`}>
                               {event.title}

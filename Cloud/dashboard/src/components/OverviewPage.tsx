@@ -662,6 +662,7 @@ function getCategoryTag(category?: string, lang: 'en' | 'vi' = 'vi') {
     case 'personal': return { label: lang === 'en' ? 'Personal' : 'Cá nhân', color: 'text-[#06b6d4] bg-[#06b6d4]/10 border-[#06b6d4]/20' };
     case 'meeting': return { label: lang === 'en' ? 'Meeting' : 'Họp/Sự kiện', color: 'text-[#f97316] bg-[#f97316]/10 border-[#f97316]/20' };
     case 'ai_agent': return { label: 'AI Agent', color: 'text-[#a855f7] bg-[#a855f7]/10 border-[#a855f7]/20' };
+    case 'finance': return { label: lang === 'en' ? 'Finance' : 'Tài chính', color: 'text-[#34d399] bg-[#34d399]/10 border-[#34d399]/20' };
     default: return null;
   }
 }

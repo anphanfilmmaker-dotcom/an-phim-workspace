@@ -85,6 +85,24 @@ Agent tuyệt đối KHÔNG ĐƯỢC tự ý gọi lệnh quét mail (vd: `--sca
 - **Cấm tạo ID tùy tiện từ Email:** Tuyệt đối không cắt chữ từ tiêu đề hoặc nội dung email cảm ơn/xác nhận (ví dụ: `exp_Thank`, `exp_Your`) để làm mã giao dịch. Phải trích xuất đúng mã Invoice ID / Order ID chuẩn.
 - **Đối soát chéo (Cross-check) trước khi Insert:** Trước khi thêm bất kỳ giao dịch nào từ email/hóa đơn hoặc nhập tay, BẮT BUỘC phải đối soát xem trong khoảng thời gian +/- 2 ngày đã tồn tại giao dịch nào cùng số tiền và cùng Vendor/MoMo/sao kê ngân hàng chưa. Nếu đã có thì TUYỆT ĐỐI KHÔNG TẠO THÊM record chi tiền mới để tránh bị nhân đôi chi phí.
 - **Loại bỏ bản ghi nhập tay khi đã có Sao kê:** Khi quét sao kê ngân hàng chính thức, nếu phát hiện bản ghi nhập tay cũ có cùng ngày, cùng số tiền và cùng mục đích, phải hợp nhất và loại bỏ bản ghi nhập tay cũ để tránh trùng lặp.
+- **Quy chuẩn Mã Giao Dịch Đối Ứng (Offset / Cấn Trừ Dòng Tiền):**
+  - **Dùng chung Mã Ngân Hàng (`FT...`) cho toàn bộ đợt:** Vì trong 1 lần chuyển khoản/quyết toán đã bao gồm cả khoản tiền chuyển thực tế và các khoản cấn trừ chi phí, nên TẤT CẢ các dòng thuộc đợt đó đều mang chung mã ngân hàng `FT...` để khi tra cứu mã giao dịch sẽ ra trọn vẹn toàn bộ đợt quyết toán.
+  - **Quy tắc phân biệt bằng `_offset`:**
+    - Dòng tiền thực tế qua ngân hàng: `inc_{MÃ_NGÂN_HÀNG}_{TÊN_KHOẢN}` (Ví dụ: `inc_FT26265055821342_forestia`).
+    - Khoản cấn trừ đối ứng: BẮT BUỘC chèn thêm `_offset` vào mã giao dịch:
+      - Thu đối ứng: `inc_{MÃ_NGÂN_HÀNG}_offset_{TÊN_KHOẢN}` (Ví dụ: `inc_FT26265055821342_offset_chua`, `inc_FT26265055821342_offset_qua`).
+      - Chi đối ứng: `exp_{MÃ_NGÂN_HÀNG}_offset_{TÊN_KHOẢN}` (Ví dụ: `exp_FT26265055821342_offset_chua`, `exp_FT26265055821342_offset_qua`).
+    - Ghi chú: Ghi rõ `[CẤN TRỪ ĐỐI ỨNG] ...`.
+  - **Quy tắc đọc của Agent:** Khi đọc các giao dịch thuộc mã ngân hàng, AI Agent tự động bóc tách:
+    - Các dòng KHÔNG chứa `_offset`: Là số tiền thực tế chuyển khoản ngân hàng (Ví dụ: 5 dòng không có `_offset` cộng lại đúng 140.000.000đ).
+    - Các dòng CÓ chứa `_offset`: Là các khoản đã được cấn trừ đối ứng (Ví dụ: 2 dòng có `_offset` là 9.705.000đ).
+    - Luôn khẳng định rõ số tiền thực nhận chuyển khoản ngân hàng trước, sau đó nêu chi tiết các khoản cấn trừ đối ứng.
+- **Quy chuẩn Đánh mã Khoản thu nhiều đợt (Multi-phase Income Standard):**
+  - Đối với tất cả các dự án / hợp đồng chia nhiều đợt thanh toán (như Forestia, The Wincity, Cát Bà, Khai Sơn, Atera, Đệ nhất pháp sư, Winterland...):
+    - **Đợt 1 (Tạm ứng):** BẮT BUỘC có hậu tố `_d1` (Ví dụ: `inc_FT26265055821342_forestia_d1`, `inc_FT26211363900740_wincity_d1`, `inc_TT2616112669_catba_d1`, `inc_FT26256953766605_dnps_d1`...).
+    - **Đợt 2 (Nghiệm thu / Thanh toán tiếp):** BẮT BUỘC có `_d2` (Ví dụ: `inc_FT26159007557750_khaison_d2`, `inc_FT26177647172425_atera_d2`...).
+    - **Đợt 3:** BẮT BUỘC có `_d3`...
+    - Khoản cấn trừ đối ứng thuộc đợt nào thì gắn kèm đợt đó: Ví dụ `inc_FT26265055821342_offset_forestia_d1_qua`, `inc_FT26177647172425_offset_catba_d1_editor`.
 
 ## 8. Phân tách rõ ràng giữa Trang Dự Án (Công ty) và Trang Tài Chính (Cá nhân)
 - **Trang Dự Án (Projects Page - Tài khoản Công ty):**
@@ -144,6 +162,11 @@ Agent tuyệt đối KHÔNG ĐƯỢC tự ý gọi lệnh quét mail (vd: `--sca
 - **Xử lý Giấy tờ & Hợp đồng (Documents):**
   - Khi bắt đầu tháng mới, Agent kiểm tra thư mục `02_PROJECTs\K87K\Documents\_THÁNG {X}` xem đã có các file mẫu / file copy sẵn chưa (như `HĐDV`, `BBTL`, `Đề nghị tạm ứng`, `Đề nghị thanh toán`).
   - Nếu đã có file: Chỉ cần đổi tên file chuẩn (bỏ "Copy of...", đặt đúng tên Tháng X), và **cập nhật ngày giờ thời gian thực hiện, ngày ký, số hợp đồng** cho phù hợp với tháng mới. **Toàn bộ điều khoản, giá tiền (32.400.000đ gồm VAT), pháp nhân Bên A & Bên B giữ nguyên 100%**.
+- **Quy chuẩn Ghi nhận Khoản thu (Winterland Income Standard):**
+  - Tên dự án: Đồng bộ viết hoa `Winterland87 Tháng {X}`.
+  - Mã giao dịch chuyển khoản thực tế: BẮT BUỘC theo cấu trúc `inc_{MÃ_NGÂN_HÀNG}_w{THÁNG}_d{ĐỢT}` (Ví dụ: `inc_FT26133092790093_w5_d1`, `inc_FT26177647172425_w6_d1`, `inc_FT26211363900740_w6_d2`, `inc_FT26211363900740_w7_d1`, `inc_FT26265055821342_w7_d2`, `inc_FT26265055821342_w8_d1`).
+  - Lưu ý lịch sử Tháng 5: Lệnh ngày 13/04 (10tr) và 07/05 (5tr) là Thảo ứng trước cho job VistaX Khai Sơn (tổng 15tr). Đợt 1 Winterland Tháng 5 (13.5tr net sau thuế TNCN 10%) và phần 5tr còn lại của Khai Sơn được quyết toán chung trong lệnh ck 10.5tr ngày 12/05/2026 sau khi cấn trừ 5.5tr nợ Thảo và 2.5tr chi phí thành lập công ty.
+  - Cấu trúc ghi chú chuẩn (`notes`): `Quách Xuân Thảo thanh toán [Đợt X (Tạm ứng / Nghiệm thu thanh lý)] Winterland87 Tháng Y (Ref: FT...)`.
 
 ## 14. Quy chuẩn Đánh số Hợp đồng (Contract Numbering Format)
 Tất cả các Hợp đồng dịch vụ (HĐDV) do AI Agent soạn thảo hoặc cập nhật **BẮT BUỘC** phải tuân theo cấu trúc số hợp đồng chuẩn mới sau đây:
@@ -157,9 +180,18 @@ Tất cả các Hợp đồng dịch vụ (HĐDV) do AI Agent soạn thảo ho�
   * *Ví dụ:* `08052026/HDDV/VISTAX - ANPHIM / ATERA`, `25072026/HDDV/9KOLOR - ANPHIM / FORESTIA`.
 
 - **Quy tắc riêng cho dự án Winterland (K87K):**
-  Thêm tháng vào sau tên dự án theo đúng cú pháp:
-  $$\text{\{DDMMYYYY\}/HDDV/WINTERLAND87 - ANPHIM / WINTERLAND87 THÁNG \{X\}}$$
-  * *Ví dụ Tháng 9 (ký ngày 15/09/2026):* `15092026/HDDV/WINTERLAND87 - ANPHIM / WINTERLAND87 THÁNG 9`
-  * *Ví dụ Tháng 8 (ký ngày 15/08/2026):* `15082026/HDDV/WINTERLAND87 - ANPHIM / WINTERLAND87 THÁNG 8`
+  Khách hàng Bên A là `K87K`, thêm tháng vào sau tên dự án theo đúng cú pháp:
+  $$\text{\{DDMMYYYY\}/HDDV/K87K - ANPHIM / WINTERLAND87 THÁNG \{X\}}$$
+  * *Ví dụ Tháng 10 (ký ngày 01/10/2026):* `01102026/HDDV/K87K - ANPHIM / WINTERLAND87 THÁNG 10`
+  * *Ví dụ Tháng 8 (ký ngày 13/08/2026):* `13082026/HDDV/K87K - ANPHIM / WINTERLAND87 THÁNG 8`
+
+## 15. Quy chuẩn Gửi Link Drive cho Sếp (Google Drive HTTPS Link Standard)
+- **Tuyệt đối KHÔNG gửi link local `file:///...`** trong tin nhắn chat hay báo cáo vì sếp không thể click mở từ trình duyệt web hoặc Telegram.
+- **BẮT BUỘC luôn gửi link web `https://...`:**
+  - Link thư mục: `https://drive.google.com/drive/folders/{folder_id}`
+  - Link file: `https://drive.google.com/file/d/{file_id}/view`
+  - Tra cứu ID trực tiếp từ database SQLite của Google Drive Desktop tại: `%LOCALAPPDATA%\Google\DriveFS\<account_id>\mirror_metadata_sqlite.db` (bảng `items`, cột `id` tương ứng với `local_title`). Hoặc dùng cú pháp tìm kiếm Drive: `https://drive.google.com/drive/search?q={query}` nếu chưa lấy được ID.
+- Sau khi thao tác xong file/thư mục trên Drive, **LUÔN LUÔN gửi kèm link HTTPS của thư mục** để sếp bấm vào xem và thao tác ngay.
+
 
 

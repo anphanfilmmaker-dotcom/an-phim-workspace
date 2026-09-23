@@ -11,7 +11,8 @@ import {
   Check,
   ExternalLink,
   Edit2,
-  Sparkles
+  Sparkles,
+  Folder
 } from "lucide-react";
 import { translations } from "../translations";
 
@@ -258,7 +259,23 @@ export default function DocumentsPage({
                       return (
                         <div>
                           <div className="flex items-center justify-between mb-3">
-                            <span className="block text-[10px] font-mono text-neutral-500 uppercase">DOCUMENT CHECKLIST</span>
+                            <div className="flex items-center space-x-2">
+                              <span className="block text-[10px] font-mono text-neutral-500 uppercase">DOCUMENT CHECKLIST</span>
+                              {docSet.folderLink && (
+                                <a 
+                                  href={docSet.folderLink}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex items-center space-x-1 text-[9px] text-amber-400 hover:text-amber-300 font-mono px-1.5 py-0.5 rounded border border-neutral-700 hover:border-amber-500/50 bg-[#171b21] transition"
+                                  title="Mở thư mục Google Drive của dự án"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Folder className="w-2.5 h-2.5 text-amber-400" />
+                                  <span>Drive</span>
+                                  <ExternalLink className="w-2 h-2 ml-0.5 opacity-60" />
+                                </a>
+                              )}
+                            </div>
                             <select 
                               className="bg-[#171b21] border border-neutral-700 text-[10px] text-neutral-300 rounded outline-none px-1.5 py-0.5 appearance-none max-w-[100px] hover:border-neutral-500 cursor-pointer transition"
                               value={displayStatus}
@@ -289,13 +306,13 @@ export default function DocumentsPage({
                                     <span className={doc.completed ? "text-emerald-400 font-medium truncate drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "text-neutral-500 font-medium truncate"}>
                                       {doc.label}
                                     </span>
-                                    {doc.completed && (
+                                    {doc.link && (
                                       <a 
-                                        href={doc.link || "https://drive.google.com/"} 
+                                        href={doc.link} 
                                         target="_blank" 
                                         rel="noreferrer"
-                                        className="ml-1.5 p-0.5 text-orange-400 opacity-50 hover:opacity-100 transition"
-                                        title="Open in Drive"
+                                        className="ml-1.5 p-0.5 text-amber-400 opacity-60 hover:opacity-100 transition"
+                                        title="Xem trên Drive"
                                         onClick={(e) => e.stopPropagation()}
                                       >
                                         <ExternalLink className="w-2.5 h-2.5" />

@@ -252,6 +252,7 @@ export default function App() {
               vatR2: !!(pd.vatR2 !== undefined ? pd.vatR2 : pd.vatr2),
               vatR3: !!(pd.vatR3 !== undefined ? pd.vatR3 : pd.vatr3),
               liquidation: !!pd.liquidation,
+              folderLink: pd.folderLink || pd.folder_link || "",
               quoteLink: pd.quoteLink || pd.quote_link || "",
               contractLink: pd.contractLink || pd.contract_link || "",
               vatR1Link: pd.vatR1Link || pd.vatr1_link || "",

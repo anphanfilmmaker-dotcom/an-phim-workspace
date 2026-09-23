@@ -152,6 +152,13 @@ export interface ProjectDocumentSet {
   vatR3: boolean;
   liquidation: boolean;
   overallStatus?: string;
+  folderLink?: string;
+  quoteLink?: string;
+  contractLink?: string;
+  vatR1Link?: string;
+  vatR2Link?: string;
+  vatR3Link?: string;
+  liquidationLink?: string;
 }
 
 // Structuring a schedule event

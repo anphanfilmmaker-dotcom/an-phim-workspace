@@ -1137,8 +1137,8 @@ export default function FinancePage({
         </div>
 
         {/* Right Distribution Breakdown */}
-        <div className="md:col-span-5 bg-[#121417] p-5 rounded-xl border border-[#1e2329]/80 space-y-4">
-          <div className="flex justify-between items-start">
+        <div className="md:col-span-5 bg-[#121417] p-5 rounded-xl border border-[#1e2329]/80 flex flex-col justify-between">
+          <div className="flex justify-between items-start shrink-0 mb-1">
             <div>
               <h3 className="text-xs font-mono font-bold text-[#10B981] uppercase tracking-wider mb-1">
                 {detailTab === "expense"
@@ -1169,8 +1169,8 @@ export default function FinancePage({
             </select>
           </div>
 
-          <div className="flex flex-col items-center justify-center p-3 relative h-44">
-            <div className="w-28 h-28 relative">
+          <div className="flex flex-col items-center justify-center p-2 relative shrink-0 my-1">
+            <div className="w-24 h-24 relative">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
                 <circle cx="18" cy="18" r="15.91549430918954" fill="transparent" stroke="#1c2229" strokeWidth="4" />
                 {(() => {
@@ -1198,16 +1198,17 @@ export default function FinancePage({
                 })()}
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-[10px] uppercase font-mono text-neutral-500 leading-none">{t.total}</span>
-                <strong className="text-xs text-white font-sans font-black mt-1 leading-none">
+                <span className="text-[9px] uppercase font-mono text-neutral-500 leading-none">{t.total}</span>
+                <strong className="text-xs text-white font-sans font-black mt-0.5 leading-none">
                   {formatVND(detailTab === "expense" ? pieTotalExpense : pieTotalIncome).split(" ")[0]}
                 </strong>
-                <span className="text-[10px] text-neutral-400 font-mono mt-0.5 leading-none">VND</span>
+                <span className="text-[9px] text-neutral-400 font-mono mt-0.5 leading-none">VND</span>
               </div>
             </div>
           </div>
 
-          <div className="space-y-2 text-[10px] font-mono max-h-56 overflow-y-auto pr-1">
+          {/* List items: stretched down to bottom */}
+          <div className="space-y-1.5 text-[10px] font-mono flex-1 overflow-y-auto pr-1.5 custom-thin-scroll min-h-[380px] max-h-[500px]">
             {detailTab === "expense" ? (
               pieExpenses.map((e) => (
                 <div key={e.category} className="flex justify-between items-center border-b border-neutral-900 pb-1.5 leading-none">
@@ -1236,7 +1237,6 @@ export default function FinancePage({
               ))
             )}
           </div>
-
         </div>
 
       </div>

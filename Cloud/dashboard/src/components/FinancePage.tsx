@@ -73,10 +73,13 @@ export default function FinancePage({
 }: FinancePageProps) {
   const t = translations[lang];
   const [selectedAlertNote, setSelectedAlertNote] = useState<string | null>(null);
-  const [timescale, setTimescale] = useState<"day" | "month" | "quarter">("day");
+  const [timescale, setTimescale] = useState<"day" | "month" | "year">("day");
   const [hoveredCf, setHoveredCf] = useState<any>(null);
 
-  // Filters for Expense Details
+  // Tabs: "expense" | "income"
+  const [detailTab, setDetailTab] = useState<"expense" | "income">("expense");
+
+  // Filters for Expense & Income Details
   const [filterMonth, setFilterMonth] = React.useState("All");
   const [filterProject, setFilterProject] = React.useState("All");
   const [isProjectDropdownOpen, setIsProjectDropdownOpen] = React.useState(false);
@@ -129,19 +132,27 @@ export default function FinancePage({
           isFuture: false
         });
       }
-    } else if (timescale === "quarter") {
-      // 4 quarters
-      const currentQ = Math.floor(today.getMonth() / 3) + 1;
-      for (let i = 1; i <= 4; i++) {
+    } else if (timescale === "year") {
+      // 12 months of current year
+      const currentM = today.getMonth(); // 0 to 11
+      for (let m = 0; m < 12; m++) {
+        const mStart = new Date(currentYear, m, 1, 0, 0, 0, 0);
+        const mEnd = new Date(currentYear, m + 1, 0, 23, 59, 59, 999);
+        const mLabelVi = `T${m + 1}`;
+        const mLabelEn = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][m];
+
         dataBuckets.push({
-          id: `q_${i}`,
-          label: `Q${i}/${String(currentYear).slice(2)}`,
-          quarterIdx: i,
+          id: `m_${m + 1}`,
+          label: lang === "en" ? mLabelEn : mLabelVi,
+          monthIdx: m + 1,
+          monthName: lang === "en" ? `${mLabelEn} ${currentYear}` : `Tháng ${m + 1}/${currentYear}`,
+          startDate: mStart.getTime(),
+          endDate: mEnd.getTime(),
           inflow: 0,
           outflow: 0,
           netProfit: 0,
-          isToday: i === currentQ,
-          isFuture: i > currentQ
+          isToday: m === currentM,
+          isFuture: m > currentM
         });
       }
     }
@@ -166,10 +177,10 @@ export default function FinancePage({
           if (isIncome) bucket.inflow += amount;
           else bucket.outflow -= amount;
         }
-      } else if (timescale === "quarter") {
+      } else if (timescale === "year") {
         if (d.getFullYear() === currentYear) {
-          const qIdx = Math.floor(d.getMonth() / 3) + 1;
-          const bucket = dataBuckets.find(b => b.quarterIdx === qIdx);
+          const mIdx = d.getMonth() + 1;
+          const bucket = dataBuckets.find(b => b.monthIdx === mIdx);
           if (bucket) {
             if (isIncome) bucket.inflow += amount;
             else bucket.outflow -= amount;
@@ -283,9 +294,10 @@ export default function FinancePage({
   const spacing = nItems > 1 ? availableWidth / (nItems - 1) : availableWidth;
 
   let colWidth = 2.5;
-  if (nItems > 10) colWidth = 1.5; // 12 months
-  else if (nItems < 5) colWidth = 4.0; // 4 quarters
-  else colWidth = 2.5; // 7 days
+  if (nItems > 20) colWidth = 0.9; // 28-31 days
+  else if (nItems >= 12) colWidth = 1.8; // 12 months or 12 weeks
+  else if (nItems < 5) colWidth = 4.0;
+  else colWidth = 2.5;
 
   const groupOffset = colWidth * 1.15;
   const centerOffset = (groupOffset + colWidth) / 2;
@@ -305,9 +317,15 @@ export default function FinancePage({
   };
 
   // -------------------------
-  // EXPENSE DETAILS DERIVATIONS
+  // FINANCIAL DETAILS DERIVATIONS (EXPENSES & INCOMES)
   // -------------------------
   const rawExpenses = db.expenseTransactions || [];
+  const rawIncomes = React.useMemo(() => {
+    return (db.incomes || []).map(inc => ({
+      ...inc,
+      amount: Number(inc.amount) || 0
+    }));
+  }, [db.incomes]);
 
   const expenseComparison = React.useMemo(() => {
     if (rawExpenses.length === 0) return null;
@@ -360,14 +378,13 @@ export default function FinancePage({
   const availableMonths = React.useMemo(() => {
     const m = new Set<string>();
     rawExpenses.forEach(e => {
-      if (e.date) {
-        // e.date is like "2026-06-01"
-        const monthStr = e.date.substring(0, 7); // "2026-06"
-        m.add(monthStr);
-      }
+      if (e.date) m.add(e.date.substring(0, 7));
+    });
+    rawIncomes.forEach(i => {
+      if (i.date) m.add(i.date.substring(0, 7));
     });
     return Array.from(m).sort((a, b) => b.localeCompare(a));
-  }, [rawExpenses]);
+  }, [rawExpenses, rawIncomes]);
 
   const availableProjects = React.useMemo(() => {
     const projectStatusMap = new Map<string, string>();
@@ -379,6 +396,9 @@ export default function FinancePage({
     pList.add("Công ty");
     rawExpenses.forEach(e => {
       if (e.project) pList.add(e.project);
+    });
+    rawIncomes.forEach(i => {
+      if (i.project) pList.add(i.project);
     });
 
     const activeList: string[] = [];
@@ -410,7 +430,7 @@ export default function FinancePage({
       active: activeList,
       completed: completedList
     };
-  }, [db.projects, rawExpenses]);
+  }, [db.projects, rawExpenses, rawIncomes]);
 
   const filteredExpenses = React.useMemo(() => {
     return rawExpenses.filter((exp) => {
@@ -421,6 +441,22 @@ export default function FinancePage({
       return true;
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [rawExpenses, filterMonth, filterProject, filterCategory, filterPaymentMethod]);
+
+  const filteredIncomes = React.useMemo(() => {
+    return rawIncomes.filter((inc) => {
+      if (filterMonth !== "All" && inc.date && !inc.date.startsWith(filterMonth)) return false;
+      if (filterProject !== "All" && inc.project !== filterProject) return false;
+      return true;
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [rawIncomes, filterMonth, filterProject]);
+
+  const totalFilteredExpense = React.useMemo(() => {
+    return filteredExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+  }, [filteredExpenses]);
+
+  const totalFilteredIncome = React.useMemo(() => {
+    return filteredIncomes.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+  }, [filteredIncomes]);
 
   const pieExpenses = React.useMemo(() => {
     const categoryTotals: Record<string, number> = {};
@@ -447,6 +483,38 @@ export default function FinancePage({
   }, [filteredExpenses]);
 
   const pieTotalExpense = pieExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+  const pieIncomes = React.useMemo(() => {
+    const projectTotals: Record<string, number> = {};
+    let totalAmt = 0;
+    filteredIncomes.forEach(i => {
+      const amt = Number(i.amount) || 0;
+      const p = i.project || "Chung";
+      projectTotals[p] = (projectTotals[p] || 0) + amt;
+      totalAmt += amt;
+    });
+
+    const palette = [
+      "#10B981", "#06b6d4", "#6366f1", "#a855f7", "#ec4899", 
+      "#f59e0b", "#3b82f6", "#14b8a6", "#8b5cf6", "#f97316"
+    ];
+
+    const sorted = Object.keys(projectTotals)
+      .map(p => ({ project: p, amount: projectTotals[p] }))
+      .sort((a, b) => b.amount - a.amount);
+
+    return sorted.map((item, idx) => {
+      const percentage = totalAmt > 0 ? Math.round((item.amount / totalAmt) * 100) : 0;
+      return {
+        project: item.project,
+        amount: item.amount,
+        percentage,
+        hex: palette[idx % palette.length]
+      };
+    });
+  }, [filteredIncomes]);
+
+  const pieTotalIncome = pieIncomes.reduce((sum, i) => sum + i.amount, 0);
 
   return (
     <div className="space-y-2 animate-fade-in text-white">
@@ -551,11 +619,11 @@ export default function FinancePage({
                 {lang === "en" ? "MONTH" : "THÁNG"}
               </button>
               <button
-                onClick={() => setTimescale("quarter")}
+                onClick={() => setTimescale("year")}
                 type="button"
-                className={`px-3 py-1 rounded-md transition duration-200 cursor-pointer ${timescale === "quarter" ? "bg-white text-black font-extrabold" : "text-neutral-450 hover:text-white"}`}
+                className={`px-3 py-1 rounded-md transition duration-200 cursor-pointer ${timescale === "year" ? "bg-white text-black font-extrabold" : "text-neutral-450 hover:text-white"}`}
               >
-                {lang === "en" ? "QUARTER" : "QUÝ"}
+                {lang === "en" ? "YEAR" : "NĂM"}
               </button>
             </div>
 
@@ -602,6 +670,9 @@ export default function FinancePage({
                         const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
                         return `${weekdays[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
                       }
+                    }
+                    if (timescale === "year" && hoveredCf.monthName) {
+                      return hoveredCf.monthName;
                     }
                     return hoveredCf.label;
                   })()}
@@ -720,15 +791,57 @@ export default function FinancePage({
       {/* Split layout */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-2 pt-0">
 
-        {/* Left Expense Details */}
+        {/* Left Financial Details (Expenses & Incomes) */}
         <div className="md:col-span-7 bg-[#121417] p-5 rounded-xl border border-[#1e2329]/80 flex flex-col justify-between">
           <div>
-            <h3 className="text-xs font-mono font-bold text-[#10B981] uppercase tracking-wider mb-2.5">
-              {lang === "en" ? "Expense Details" : "Chi tiết chi phí"}
-            </h3>
-            <p className="text-[10px] text-neutral-400 mb-4 leading-snug">
-              {lang === "en" ? "Detailed list of operational expenses with filters" : "Danh sách chi tiết các khoản chi phí vận hành kèm bộ lọc"}
-            </p>
+            {/* Header with Chi / Thu Tabs */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 border-b border-[#1e2329]/60 pb-3">
+              <div>
+                <div className="flex items-center bg-[#171b21] p-0.5 rounded-lg border border-[#232a32] text-[10px] font-mono font-bold select-none w-fit">
+                  <button
+                    type="button"
+                    onClick={() => setDetailTab("expense")}
+                    className={`px-3 py-1.5 rounded-md transition duration-200 cursor-pointer flex items-center gap-1.5 ${
+                      detailTab === "expense"
+                        ? "bg-orange-500/20 text-orange-400 border border-orange-500/30 font-extrabold shadow-sm"
+                        : "text-neutral-400 hover:text-white"
+                    }`}
+                  >
+                    <ArrowDownRight className="w-3.5 h-3.5 text-orange-400" />
+                    <span>{lang === "en" ? "EXPENSES" : "KHOẢN CHI"}</span>
+                    <span className="text-[9px] opacity-70">({filteredExpenses.length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDetailTab("income")}
+                    className={`px-3 py-1.5 rounded-md transition duration-200 cursor-pointer flex items-center gap-1.5 ${
+                      detailTab === "income"
+                        ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-extrabold shadow-sm"
+                        : "text-neutral-400 hover:text-white"
+                    }`}
+                  >
+                    <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>{lang === "en" ? "INCOMES" : "KHOẢN THU"}</span>
+                    <span className="text-[9px] opacity-70">({filteredIncomes.length})</span>
+                  </button>
+                </div>
+                <p className="text-[10px] text-neutral-400 mt-2 leading-snug">
+                  {detailTab === "expense"
+                    ? (lang === "en" ? "Detailed list of operational expenses with filters" : "Danh sách chi tiết các khoản chi phí vận hành kèm bộ lọc")
+                    : (lang === "en" ? "Detailed list of contract payments and revenue inflows" : "Danh sách chi tiết các khoản thu thanh toán hợp đồng kèm bộ lọc")}
+                </p>
+              </div>
+
+              {/* Summary badge */}
+              <div className="text-right shrink-0 bg-[#171b21] px-3 py-1.5 rounded-lg border border-[#232a32]">
+                <span className="text-[9px] font-mono text-neutral-400 block uppercase">
+                  {detailTab === "expense" ? (lang === "en" ? "Filtered Outflow" : "Tổng chi lọc") : (lang === "en" ? "Filtered Inflow" : "Tổng thu lọc")}
+                </span>
+                <span className={`text-xs font-mono font-bold ${detailTab === "expense" ? "text-orange-400" : "text-emerald-400"}`}>
+                  {formatVND(detailTab === "expense" ? totalFilteredExpense : totalFilteredIncome)}
+                </span>
+              </div>
+            </div>
 
             {/* Filters */}
             <div className="flex flex-wrap gap-2 mb-4">
@@ -835,106 +948,214 @@ export default function FinancePage({
                 )}
               </div>
 
-              <select
-                value={filterCategory}
-                onChange={e => setFilterCategory(e.target.value)}
-                className="bg-[#171b21] border border-[#232a32] text-white text-[10px] font-mono rounded px-2 py-1 outline-none"
-              >
-                <option value="All">{lang === "en" ? "All Categories" : "Tất cả danh mục"}</option>
-                {availableCategories.map(c => <option key={c} value={c}>{translateCategory(c)}</option>)}
-              </select>
+              {detailTab === "expense" && (
+                <>
+                  <select
+                    value={filterCategory}
+                    onChange={e => setFilterCategory(e.target.value)}
+                    className="bg-[#171b21] border border-[#232a32] text-white text-[10px] font-mono rounded px-2 py-1 outline-none"
+                  >
+                    <option value="All">{lang === "en" ? "All Categories" : "Tất cả danh mục"}</option>
+                    {availableCategories.map(c => <option key={c} value={c}>{translateCategory(c)}</option>)}
+                  </select>
 
-              <select
-                value={filterPaymentMethod}
-                onChange={e => setFilterPaymentMethod(e.target.value)}
-                className="bg-[#171b21] border border-[#232a32] text-white text-[10px] font-mono rounded px-2 py-1 outline-none"
-              >
-                <option value="All">{lang === "en" ? "All Methods" : "PT thanh toán"}</option>
-                {availablePaymentMethods.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
+                  <select
+                    value={filterPaymentMethod}
+                    onChange={e => setFilterPaymentMethod(e.target.value)}
+                    className="bg-[#171b21] border border-[#232a32] text-white text-[10px] font-mono rounded px-2 py-1 outline-none"
+                  >
+                    <option value="All">{lang === "en" ? "All Methods" : "PT thanh toán"}</option>
+                    {availablePaymentMethods.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </>
+              )}
             </div>
 
-            <div className="flex-1 min-h-[400px] max-h-[500px] overflow-y-auto pr-4">
-              {filteredExpenses.map((exp) => {
-                const catStyle = getCategoryStyles(exp.category);
+            {/* List Container */}
+            {detailTab === "expense" ? (
+              <div className="flex-1 min-h-[400px] max-h-[500px] overflow-y-auto pr-4">
+                {filteredExpenses.map((exp) => {
+                  const catStyle = getCategoryStyles(exp.category);
 
-                const getPaymentMethodColor = (method: string) => {
-                  const m = method.toLowerCase();
-                  if (m.includes('momo')) return 'bg-pink-950/40 text-pink-400';
-                  if (m.includes('chuyển khoản') || m === 'ck') return 'bg-emerald-950/40 text-emerald-400';
-                  if (m.includes('cash') || m.includes('tiền mặt')) return 'bg-blue-950/40 text-blue-400';
-                  if (m.includes('credit') || m.includes('thẻ')) return 'bg-orange-950/40 text-orange-400';
-                  return 'bg-neutral-800 text-neutral-400';
-                };
+                  const getPaymentMethodColor = (method: string) => {
+                    const m = method.toLowerCase();
+                    if (m.includes('momo')) return 'bg-pink-950/40 text-pink-400';
+                    if (m.includes('chuyển khoản') || m === 'ck') return 'bg-emerald-950/40 text-emerald-400';
+                    if (m.includes('cash') || m.includes('tiền mặt')) return 'bg-blue-950/40 text-blue-400';
+                    if (m.includes('credit') || m.includes('thẻ')) return 'bg-orange-950/40 text-orange-400';
+                    return 'bg-neutral-800 text-neutral-400';
+                  };
 
-                const getProjectColor = (projName?: string) => {
-                  if (!projName) return 'bg-[#232a32] text-neutral-400 border border-neutral-700/40';
-                  const lower = projName.toLowerCase();
-                  if (lower.includes('công ty')) return 'bg-blue-950/40 text-blue-300 border border-blue-800/40';
-                  if (lower.includes('cá nhân')) return 'bg-purple-950/40 text-purple-300 border border-purple-800/40';
-                  if (lower.includes('chung')) return 'bg-[#232a32] text-neutral-400 border border-neutral-700/40';
-                  return 'bg-emerald-950/40 text-emerald-300 border border-emerald-800/40';
-                };
+                  const getProjectColor = (projName?: string) => {
+                    if (!projName) return 'bg-[#232a32] text-neutral-400 border border-neutral-700/40';
+                    const lower = projName.toLowerCase();
+                    if (lower.includes('công ty')) return 'bg-blue-950/40 text-blue-300 border border-blue-800/40';
+                    if (lower.includes('cá nhân')) return 'bg-purple-950/40 text-purple-300 border border-purple-800/40';
+                    if (lower.includes('chung')) return 'bg-[#232a32] text-neutral-400 border border-neutral-700/40';
+                    return 'bg-emerald-950/40 text-emerald-300 border border-emerald-800/40';
+                  };
 
-                return (
-                  <div
-                    key={exp.id}
-                    className="flex flex-col py-1.5 border-b border-neutral-800/50 hover:bg-white/[0.02] transition px-1"
-                  >
-                    {/* Top Row: Date+Tags on Left, Description on Right */}
-                    <div className="flex justify-between items-center mb-0.5">
-                      <div className="flex items-center gap-1.5 flex-wrap min-w-0 pr-2">
-                        <span className="text-neutral-500 font-mono text-[9px] shrink-0">{exp.date}</span>
-                        <div className="flex items-center gap-1 text-[8px] font-mono">
-                          {exp.paymentMethod && (
-                            <span className={`px-1 py-[1px] rounded uppercase truncate max-w-[60px] ${getPaymentMethodColor(exp.paymentMethod)}`}>
-                              {exp.paymentMethod}
+                  return (
+                    <div
+                      key={exp.id}
+                      className="flex flex-col py-1.5 border-b border-neutral-800/50 hover:bg-white/[0.02] transition px-1"
+                    >
+                      {/* Top Row: Date+Tags on Left, Description on Right */}
+                      <div className="flex justify-between items-center mb-0.5">
+                        <div className="flex items-center gap-1.5 flex-wrap min-w-0 pr-2">
+                          <span className="text-neutral-500 font-mono text-[9px] shrink-0">{exp.date}</span>
+                          <div className="flex items-center gap-1 text-[8px] font-mono">
+                            {exp.paymentMethod && (
+                              <span className={`px-1 py-[1px] rounded uppercase truncate max-w-[60px] ${getPaymentMethodColor(exp.paymentMethod)}`}>
+                                {exp.paymentMethod}
+                              </span>
+                            )}
+                            <span className={`px-1 py-[1px] rounded uppercase truncate max-w-[90px] ${getProjectColor(exp.project)}`}>
+                              {exp.project || 'Chung'}
                             </span>
-                          )}
-                          <span className={`px-1 py-[1px] rounded uppercase truncate max-w-[90px] ${getProjectColor(exp.project)}`}>
-                            {exp.project || 'Chung'}
+                            <span className={`px-1 py-[1px] rounded uppercase ${catStyle.text} ${catStyle.tagBg} border ${catStyle.border} truncate max-w-[90px]`}>
+                              {exp.category}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-[9px] text-neutral-500 italic font-mono truncate max-w-[130px] text-right shrink-0">
+                          {exp.description && !exp.description.startsWith('The 5203') ? exp.description : ''}
+                        </span>
+                      </div>
+
+                      {/* Bottom Row: Vendor on Left, Amount on Right */}
+                      <div className="flex justify-between items-center">
+                        <h4 className="text-[11px] font-bold text-white font-sans truncate min-w-0 pr-2">{exp.vendor || 'N/A'}</h4>
+                        <span className="block font-bold text-white text-[11px] shrink-0">
+                          {formatVND(exp.amount)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+                {filteredExpenses.length === 0 && (
+                  <div className="text-center py-8 text-neutral-450 text-[10px] font-mono uppercase">
+                    {lang === "en" ? "No expenses found for selected filters" : "Không tìm thấy chi phí phù hợp với bộ lọc"}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex-1 min-h-[400px] max-h-[500px] overflow-y-auto pr-4">
+                {(() => {
+                  const formatIncomeDescription = (notes?: string, isOffset?: boolean): string => {
+                    if (!notes) return lang === "en" ? "Contract payment" : "Thanh toán hợp đồng";
+                    let text = notes.trim();
+
+                    // Strip (Ref: ...)
+                    text = text.replace(/\s*\([Rr]ef:?[^)]*\)/g, '');
+
+                    // Strip offset boilerplate
+                    text = text.replace(/^\[CẤN TRỪ ĐỐI ỨNG\]\s*/i, '');
+                    text = text.replace(/,?\s*đối ứng với\s+exp_[^\s,)]+/gi, '');
+
+                    if (isOffset) {
+                      const match = text.match(/(?:cấn\s+trừ\s+tiền|cấn\s+trừ)\s+([^,()]+(?:\([^)]*\))?)/i);
+                      if (match) {
+                        const item = match[1].trim();
+                        return `Cấn trừ: ${item.charAt(0).toUpperCase() + item.slice(1)}`;
+                      }
+                      const match2 = text.match(/Doanh thu đối ứng\s+(.*)/i);
+                      if (match2) {
+                        return `Cấn trừ: ${match2[1].trim()}`;
+                      }
+                      return `Cấn trừ: ${text}`;
+                    }
+
+                    // For normal payments: strip verbose details in parentheses
+                    text = text.replace(/\s*-\s*nằm trong lệnh ck\s*\w+/gi, '');
+                    text = text.replace(/\s*\((?:tiền mặt chuyển khoản|nằm trong lệnh ck|đã bao gồm)[^)]*\)/gi, '');
+                    text = text.replace(/\s*\(\d+[\d.,]*\s*(?:đ|vnđ|tr).*?(?:VAT|\=).*?\)/gi, '');
+                    text = text.replace(/\s*\(\d+%\s*của\s*[^)]*\)/gi, '');
+
+                    text = text.replace(/Quách Xuân Thảo thanh toán/gi, 'Thanh toán');
+                    text = text.replace(/\(Tạm ứng\)/gi, '(Tạm ứng)');
+                    text = text.replace(/\(Nghiệm thu thanh lý\)/gi, '(Nghiệm thu)');
+
+                    return text.trim();
+                  };
+
+                  return filteredIncomes.map((inc) => {
+                    const getProjectColor = (projName?: string) => {
+                      if (!projName) return 'bg-[#232a32] text-neutral-400 border border-neutral-700/40';
+                      const lower = projName.toLowerCase();
+                      if (lower.includes('công ty')) return 'bg-blue-950/40 text-blue-300 border border-blue-800/40';
+                      if (lower.includes('cá nhân')) return 'bg-purple-950/40 text-purple-300 border border-purple-800/40';
+                      return 'bg-emerald-950/40 text-emerald-300 border border-emerald-800/40';
+                    };
+
+                    const isOffset = inc.id && inc.id.includes('_offset');
+
+                    return (
+                      <div
+                        key={inc.id}
+                        className="flex flex-col py-1.5 border-b border-neutral-800/50 hover:bg-white/[0.02] transition px-1"
+                      >
+                        {/* Top Row: Date + Project Tag + Offset Tag + Status */}
+                        <div className="flex justify-between items-center mb-0.5">
+                          <div className="flex items-center gap-1.5 flex-wrap min-w-0 pr-2">
+                            <span className="text-neutral-500 font-mono text-[9px] shrink-0">{inc.date}</span>
+                            <span className={`px-1.5 py-[0.5px] rounded uppercase font-mono text-[8px] truncate max-w-[120px] ${getProjectColor(inc.project)}`}>
+                              {inc.project || 'Chung'}
+                            </span>
+                            {isOffset && (
+                              <span className="px-1 py-[0.5px] rounded uppercase font-mono text-[8px] bg-amber-950/40 text-amber-300 border border-amber-800/40 font-bold">
+                                {lang === "en" ? "Offset" : "Cấn trừ"}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[9px] text-emerald-400 font-mono font-bold shrink-0">
+                            {lang === "en" ? "Received" : "Đã nhận"}
                           </span>
-                          <span className={`px-1 py-[1px] rounded uppercase ${catStyle.text} ${catStyle.tagBg} border ${catStyle.border} truncate max-w-[90px]`}>
-                            {exp.category}
+                        </div>
+
+                        {/* Bottom Row: Clean Notes on Left, Amount on Right */}
+                        <div className="flex justify-between items-center">
+                          <p className="text-[11px] font-sans text-neutral-300 truncate min-w-0 pr-2" title={inc.notes}>
+                            {formatIncomeDescription(inc.notes, isOffset)}
+                          </p>
+                          <span className="block font-bold text-emerald-400 font-mono text-[11px] shrink-0">
+                            +{formatVND(inc.amount)}
                           </span>
                         </div>
                       </div>
-                      <span className="text-[9px] text-neutral-500 italic font-mono truncate max-w-[130px] text-right shrink-0">
-                        {exp.description && !exp.description.startsWith('The 5203') ? exp.description : ''}
-                      </span>
-                    </div>
-
-                    {/* Bottom Row: Vendor on Left, Amount on Right */}
-                    <div className="flex justify-between items-center">
-                      <h4 className="text-[11px] font-bold text-white font-sans truncate min-w-0 pr-2">{exp.vendor || 'N/A'}</h4>
-                      <span className="block font-bold text-white text-[11px] shrink-0">
-                        {formatVND(exp.amount)}
-                      </span>
-                    </div>
+                    );
+                  });
+                })()}
+                {filteredIncomes.length === 0 && (
+                  <div className="text-center py-8 text-neutral-450 text-[10px] font-mono uppercase">
+                    {lang === "en" ? "No incomes found for selected filters" : "Không tìm thấy khoản thu nào phù hợp với bộ lọc"}
                   </div>
-                );
-              })}
-              {filteredExpenses.length === 0 && (
-                <div className="text-center py-8 text-neutral-450 text-[10px] font-mono uppercase">
-                  {lang === "en" ? "No expenses found for selected filters" : "Không tìm thấy chi phí phù hợp với bộ lọc"}
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Right Expense Breakdown */}
+        {/* Right Distribution Breakdown */}
         <div className="md:col-span-5 bg-[#121417] p-5 rounded-xl border border-[#1e2329]/80 space-y-4">
           <div className="flex justify-between items-start">
             <div>
               <h3 className="text-xs font-mono font-bold text-[#10B981] uppercase tracking-wider mb-1">
-                {lang === "en" ? "Expense Distribution" : "Phân bổ chi phí"}
+                {detailTab === "expense"
+                  ? (lang === "en" ? "Expense Distribution" : "Phân bổ chi phí")
+                  : (lang === "en" ? "Revenue Distribution" : "Phân bổ nguồn thu")}
               </h3>
               <p className="text-[10px] font-mono leading-snug flex flex-wrap items-center gap-1.5">
-                {expenseComparison && (
-                  <span className={expenseComparison.colorClass}>{expenseComparison.text}</span>
+                {detailTab === "expense" ? (
+                  <>
+                    {expenseComparison && (
+                      <span className={expenseComparison.colorClass}>{expenseComparison.text}</span>
+                    )}
+                    <span className="text-neutral-500">{lang === "en" ? "Operational Expenses" : "Cơ cấu chi phí vận hành"}</span>
+                  </>
+                ) : (
+                  <span className="text-neutral-500">{lang === "en" ? "Revenue share by Project" : "Tỷ trọng doanh thu theo dự án"}</span>
                 )}
-                <span className="text-neutral-500">{lang === "en" ? "Operational Expenses" : "Cơ cấu chi phí vận hành"}</span>
               </p>
             </div>
 
@@ -952,51 +1173,68 @@ export default function FinancePage({
             <div className="w-28 h-28 relative">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
                 <circle cx="18" cy="18" r="15.91549430918954" fill="transparent" stroke="#1c2229" strokeWidth="4" />
-                {pieExpenses.map((e) => {
-                  const strokeDasharray = `${e.percentage} ${100 - e.percentage}`;
-                  const strokeDashoffset = 100 - cumulativePercent;
-                  cumulativePercent += e.percentage;
+                {(() => {
+                  let cum = 0;
+                  const items: any[] = detailTab === "expense" ? pieExpenses : pieIncomes;
+                  return items.map((item) => {
+                    const strokeDasharray = `${item.percentage} ${100 - item.percentage}`;
+                    const strokeDashoffset = 100 - cum;
+                    cum += item.percentage;
 
-                  return (
-                    <circle
-                      key={e.category}
-                      cx="18"
-                      cy="18"
-                      r="15.91549430918954"
-                      fill="transparent"
-                      stroke={e.hex}
-                      strokeWidth="4"
-                      strokeDasharray={strokeDasharray}
-                      strokeDashoffset={strokeDashoffset}
-                    />
-                  );
-                })}
+                    return (
+                      <circle
+                        key={item.category || item.project}
+                        cx="18"
+                        cy="18"
+                        r="15.91549430918954"
+                        fill="transparent"
+                        stroke={item.hex}
+                        strokeWidth="4"
+                        strokeDasharray={strokeDasharray}
+                        strokeDashoffset={strokeDashoffset}
+                      />
+                    );
+                  });
+                })()}
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-[10px] uppercase font-mono text-neutral-500 leading-none">{t.total}</span>
                 <strong className="text-xs text-white font-sans font-black mt-1 leading-none">
-                  {formatVND(pieTotalExpense).split(" ")[0]}
+                  {formatVND(detailTab === "expense" ? pieTotalExpense : pieTotalIncome).split(" ")[0]}
                 </strong>
                 <span className="text-[10px] text-neutral-400 font-mono mt-0.5 leading-none">VND</span>
               </div>
             </div>
           </div>
 
-          <div className="space-y-2 text-[10px] font-mono">
-            {pieExpenses.map((e) => {
-              return (
+          <div className="space-y-2 text-[10px] font-mono max-h-56 overflow-y-auto pr-1">
+            {detailTab === "expense" ? (
+              pieExpenses.map((e) => (
                 <div key={e.category} className="flex justify-between items-center border-b border-neutral-900 pb-1.5 leading-none">
                   <div className="flex items-center space-x-2">
                     <span className={`w-2.5 h-2.5 rounded-full ${e.color} shrink-0`} style={{ backgroundColor: e.hex }} />
                     <span className={`${e.text} font-bold`}>{translateCategory(e.category)}</span>
                   </div>
-                  <div className="space-x-3.5">
+                  <div className="space-x-3.5 shrink-0">
                     <span className="text-neutral-450">{formatVND(e.amount)}</span>
                     <span className="font-bold" style={{ color: e.hex }}>{e.percentage}%</span>
                   </div>
                 </div>
-              );
-            })}
+              ))
+            ) : (
+              pieIncomes.map((p) => (
+                <div key={p.project} className="flex justify-between items-center border-b border-neutral-900 pb-1.5 leading-none">
+                  <div className="flex items-center space-x-2 min-w-0 pr-2">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.hex }} />
+                    <span className="text-neutral-200 font-bold truncate">{p.project}</span>
+                  </div>
+                  <div className="space-x-3.5 shrink-0">
+                    <span className="text-neutral-450">{formatVND(p.amount)}</span>
+                    <span className="font-bold text-emerald-400">{p.percentage}%</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
         </div>

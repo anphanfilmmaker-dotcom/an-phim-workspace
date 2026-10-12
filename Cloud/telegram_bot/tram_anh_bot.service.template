@@ -1,0 +1,17 @@
+[Unit]
+Description=Tram Anh PM Telegram Assistant Bot 24/7
+After=network.target
+
+[Service]
+Type=simple
+User={{USER}}
+WorkingDirectory={{WORKDIR}}
+ExecStart={{PYTHON_PATH}} {{WORKDIR}}/tram_anh_bot.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

@@ -2073,18 +2073,26 @@ def handle_actions(message):
         send_safe_message(message, "✨ *Tuyệt vời sếp ơi!* Hiện không có Action item nào cần sếp input hay phê duyệt cả ạ.")
         return
 
-    msg = f"📋 *DANH SÁCH VIỆC CẦN SẾP DUYỆT / INPUT ({len(rows)} mục):*\n\n"
+    msg = f"📋 *DANH SÁCH VIỆC CẦN SẾP DUYỆT / INPUT ({len(rows)} mục):*\n"
+    send_safe_message(message, msg)
+
     for idx, r in enumerate(rows, 1):
+        act_id = r['id']
         agent = r.get('suggestedagent') or 'AI Agent'
         level = r.get('prioritylevel') or 'Normal'
-        msg += f"*{idx}.* [{level}] *{agent}*: {r['title']}\n\n"
+        title = r.get('title') or ''
+        notes = r.get('notes') or ''
 
-    first_exp_act = next((r for r in rows if 'khoản chi' in r['title'].lower() or 'exp_' in (r.get('notes') or '')), None)
-    markup = build_expense_classification_keyboard(first_exp_act['id']) if first_exp_act else None
-    if markup:
-        msg += "👉 *Sếp có thể duyệt nhanh khoản chi bằng các nút bấm bên dưới:* 👇"
+        is_exp = 'khoản chi' in title.lower() or 'exp_' in notes or 'exp_' in title
+        markup = build_expense_classification_keyboard(act_id) if is_exp else None
 
-    send_safe_message(message, msg, reply_markup=markup)
+        card_text = f"*{idx}.* [{level}] *{agent}*: {title}"
+        if notes:
+            card_text += f"\nℹ️ _{notes}_"
+        if markup:
+            card_text += "\n👉 *Sếp bấm chọn nhanh bên dưới:*"
+
+        send_safe_message(message, card_text, reply_markup=markup)
 
 @bot.message_handler(commands=['projects'])
 def handle_projects(message):
@@ -2214,12 +2222,15 @@ def build_expense_classification_keyboard(act_id: str):
     b1 = types.InlineKeyboardButton("🍜 Ăn uống (Cá nhân)", callback_data=f"clf:{act_id}:fnb")
     b2 = types.InlineKeyboardButton("🛒 Mua sắm (Cá nhân)", callback_data=f"clf:{act_id}:shop")
     b3 = types.InlineKeyboardButton("🚕 Di chuyển (Cá nhân)", callback_data=f"clf:{act_id}:trans")
-    b4 = types.InlineKeyboardButton("👤 Khác (Cá nhân)", callback_data=f"clf:{act_id}:psnl")
+    b4 = types.InlineKeyboardButton("🏡 Gia đình / Con cái", callback_data=f"clf:{act_id}:fam")
     b5 = types.InlineKeyboardButton("🤖 AI / Tools (Công ty)", callback_data=f"clf:{act_id}:ai")
     b6 = types.InlineKeyboardButton("🏢 Văn phòng (Công ty)", callback_data=f"clf:{act_id}:off")
+    b7 = types.InlineKeyboardButton("💳 Vay / Nợ (Cá nhân)", callback_data=f"clf:{act_id}:debt")
+    b8 = types.InlineKeyboardButton("👤 Khác (Cá nhân)", callback_data=f"clf:{act_id}:psnl")
     markup.add(b1, b2)
     markup.add(b3, b4)
     markup.add(b5, b6)
+    markup.add(b7, b8)
     return markup
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("clf_") or call.data.startswith("clf:"))
@@ -2248,6 +2259,8 @@ def handle_expense_classification_callback(call):
         "fnb": ("Food / Meeting", "PROJ-CANHAN", "Ăn uống (Cá nhân)"),
         "shop": ("Shopping", "PROJ-CANHAN", "Mua sắm (Cá nhân)"),
         "trans": ("Di chuyển", "PROJ-CANHAN", "Di chuyển (Cá nhân)"),
+        "fam": ("Gia đình & Định kỳ", "PROJ-CANHAN", "Gia đình & Định kỳ (Cá nhân)"),
+        "debt": ("Vay / Nợ", "PROJ-CANHAN", "Vay / Nợ (Cá nhân)"),
         "psnl": ("Personal", "PROJ-CANHAN", "Chi tiêu khác (Cá nhân)"),
         "ai": ("AI / Tools", "PROJ-CONGTY", "AI / Tools (Công ty)"),
         "off": ("Office / Admin", "PROJ-CONGTY", "Văn phòng (Công ty)")

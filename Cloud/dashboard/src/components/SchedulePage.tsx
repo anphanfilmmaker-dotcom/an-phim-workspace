@@ -23,11 +23,9 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
 
   const [filters, setFilters] = useState({
     work: true,
-    personal: true,
     meeting: true,
-    ai_agent: true,
-    finance: true,
-    other: true
+    personal: true,
+    important: true
   });
 
   const monthNamesEn = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -53,7 +51,7 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
   };
 
   const clearFilters = () => {
-    setFilters({ work: false, personal: false, meeting: false, ai_agent: false, finance: false, other: false });
+    setFilters({ work: false, meeting: false, personal: false, important: false });
   };
 
   const events = db.schedule || [];
@@ -61,11 +59,10 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
   const getEventBlockStyle = (category: string) => {
     switch (category) {
       case 'work': return "bg-[#064e3b] border-l-2 border-[#10B981]";
-      case 'personal': return "bg-[#164e63] border-l-2 border-[#06b6d4]";
       case 'meeting': return "bg-[#7c2d12] border-l-2 border-[#f97316]";
-      case 'ai_agent': return "bg-[#4c1d95] border-l-2 border-[#a855f7]";
-      case 'finance': return "bg-[#064e3b] border-l-2 border-[#34d399]";
-      default: return "bg-[#3f3f46] border-l-2 border-[#a1a1aa]";
+      case 'personal': return "bg-[#164e63] border-l-2 border-[#06b6d4]";
+      case 'important': return "bg-[#7f1d1d] border-l-2 border-[#ef4444]";
+      default: return "bg-[#064e3b] border-l-2 border-[#10B981]";
     }
   };
 
@@ -97,11 +94,11 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
   }
 
   const filteredEvents = events.filter(e => {
-    const cat = e.category || 'other';
+    const cat = e.category || 'work';
     if ((filters as Record<string, boolean>)[cat] !== undefined) {
       return (filters as Record<string, boolean>)[cat];
     }
-    return filters.other ?? true;
+    return true;
   });
   const totalEvents = filteredEvents.length;
   const completedEvents = filteredEvents.filter(e => e.status === 'done').length;
@@ -132,10 +129,9 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
                   <div className="absolute top-full right-0 mt-1.5 w-48 bg-[#161C24] border border-[rgba(255,255,255,0.08)] rounded-[8px] p-2 shadow-xl z-50 flex flex-col gap-1">
                     {[
                       { key: 'work', label: lang === 'en' ? 'Work' : 'Công việc' },
+                      { key: 'meeting', label: lang === 'en' ? 'Meeting' : 'Họp / Sự kiện' },
                       { key: 'personal', label: lang === 'en' ? 'Personal' : 'Cá nhân' },
-                      { key: 'meeting', label: lang === 'en' ? 'Meeting' : 'Cuộc họp' },
-                      { key: 'ai_agent', label: lang === 'en' ? 'AI Agent' : 'AI Agent' },
-                      { key: 'finance', label: lang === 'en' ? 'Finance' : 'Tài chính' }
+                      { key: 'important', label: lang === 'en' ? 'Important / Deadline' : 'Quan trọng / Deadline' }
                     ].map(f => (
                       <label key={f.key} onClick={() => toggleFilter(f.key as any)} className="flex items-center group cursor-pointer py-1.5 px-2 hover:bg-[#1f2937] rounded-[4px] transition-colors">
                         <div className={`w-3.5 h-3.5 rounded-[3px] flex items-center justify-center transition-colors shrink-0 ${filters[f.key as keyof typeof filters]
@@ -260,11 +256,9 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
             <div className="flex items-center space-x-4 text-[10px] font-sans text-[#8B949E] min-w-0 pr-4">
               {[
                 { key: 'work', label: lang === 'en' ? 'Work' : 'Công việc', color: 'bg-[#10B981]' },
-                { key: 'personal', label: lang === 'en' ? 'Personal' : 'Cá nhân', color: 'bg-[#06b6d4]' },
                 { key: 'meeting', label: lang === 'en' ? 'Meeting' : 'Họp/Sự kiện', color: 'bg-[#f97316]' },
-                { key: 'ai_agent', label: lang === 'en' ? 'AI Agent' : 'AI Agent', color: 'bg-[#a855f7]' },
-                { key: 'finance', label: lang === 'en' ? 'Finance' : 'Tài chính', color: 'bg-[#34d399]' },
-                { key: 'other', label: lang === 'en' ? 'Other' : 'Khác', color: 'bg-[#8B949E]' }
+                { key: 'personal', label: lang === 'en' ? 'Personal' : 'Cá nhân', color: 'bg-[#06b6d4]' },
+                { key: 'important', label: lang === 'en' ? 'Important' : 'Quan trọng / Deadline', color: 'bg-[#ef4444]' }
               ].map(f => {
                 const count = events.filter(e => e.category === f.key).length;
                 return (
@@ -347,11 +341,11 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
                 if (c.dateStr === todayStr) {
                   bgClass = "bg-[#f97316] text-[#050809] font-bold";
                 } else if (firstEvent) {
-                  if (firstEvent.category === 'work') bgClass = "bg-[#10B981] text-[#050809] font-bold";
-                  else if (firstEvent.category === 'personal') bgClass = "bg-[#06b6d4] text-[#050809] font-bold";
+                  if (firstEvent.category === 'important') bgClass = "bg-[#ef4444] text-white font-bold";
+                  else if (firstEvent.category === 'work') bgClass = "bg-[#10B981] text-[#050809] font-bold";
                   else if (firstEvent.category === 'meeting') bgClass = "bg-[#f97316] text-[#050809] font-bold";
-                  else if (firstEvent.category === 'ai_agent') bgClass = "bg-[#a855f7] text-[#050809] font-bold";
-                  else bgClass = "bg-[#8B949E] text-[#050809] font-bold";
+                  else if (firstEvent.category === 'personal') bgClass = "bg-[#06b6d4] text-[#050809] font-bold";
+                  else bgClass = "bg-[#10B981] text-[#050809] font-bold";
                 }
                 const isSelected = c.dateStr === globalSelectedDateStr;
                 if (isSelected) {
@@ -434,12 +428,12 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
                               </button>
                             )}
 
-                            <div className={`w-2 h-2 rounded-full shrink-0 ${event.category === 'work' ? 'bg-[#10B981]' :
-                                event.category === 'personal' ? 'bg-[#06b6d4]' :
-                                  event.category === 'meeting' ? 'bg-[#f97316]' :
-                                    event.category === 'ai_agent' ? 'bg-[#a855f7]' :
-                                      event.category === 'finance' ? 'bg-[#34d399]' : 'bg-[#8B949E]'
-                              }`} />
+                            <div className={`w-2 h-2 rounded-full shrink-0 ${
+                              event.category === 'important' ? 'bg-[#ef4444]' :
+                              event.category === 'work' ? 'bg-[#10B981]' :
+                              event.category === 'meeting' ? 'bg-[#f97316]' :
+                              event.category === 'personal' ? 'bg-[#06b6d4]' : 'bg-[#10B981]'
+                            }`} />
                             <h4 className={`text-[12px] font-bold leading-tight transition-all ${event.status === 'done' ? 'text-[#8B949E] line-through' : 'text-[#F5F7FA]'}`}>
                               {event.title}
                             </h4>

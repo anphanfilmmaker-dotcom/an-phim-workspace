@@ -108,7 +108,7 @@ export interface CEOAction {
   suggestedAgent: string;
   status: "Pending" | "Done" | "Waiting" | "Need Follow-up";
   notes?: string;
-  category?: "work" | "personal" | "meeting" | "ai_agent" | "other";
+  category?: "work" | "personal" | "meeting" | "important";
   itemSource?: "action" | "schedule";
   timeStr?: string;
   linkedEventId?: string;
@@ -169,7 +169,7 @@ export interface CalendarEvent {
   startTime: string;
   endTime?: string;
   date: string; // YYYY-MM-DD
-  category: "work" | "personal" | "meeting" | "ai_agent" | "other";
+  category: "work" | "personal" | "meeting" | "important";
   priority: "low" | "medium" | "high";
   status: "todo" | "in_progress" | "done";
   owner?: string;

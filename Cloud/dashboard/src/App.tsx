@@ -77,6 +77,48 @@ export const isMatchingTask = (eventTitle: string, eventDesc: string | undefined
   return false;
 };
 
+// Normalize a raw project from the API into a fully-typed Project object
+const normalizeProject = (p: any): import("./types").Project => {
+  const MILESTONE_NAMES = [
+    "Brief / Scope", "Pre-Production", "Draft idea",
+    "Storyboard", "Production", "Offline", "Online",
+    "Delivery", "Final / Close-out"
+  ];
+  let milestones: { name: string; date: string; completed: boolean }[] = [];
+  if (Array.isArray(p.milestones)) {
+    milestones = p.milestones.map((ms: any) => {
+      if (typeof ms === "string") {
+        return { name: ms, date: "", completed: false };
+      }
+      return { name: ms.name || "", date: ms.date || "", completed: !!ms.completed };
+    });
+  }
+  if (milestones.length === 0) {
+    milestones = MILESTONE_NAMES.map(n => ({ name: n, date: "", completed: false }));
+  }
+
+  return {
+    id: String(p.id || ""),
+    name: p.projectName || p.name || "",
+    client: p.client || "N/A",
+    status: p.status || "Chưa bắt đầu",
+    budget: Number(p.budget) || 0,
+    received: Number(p.received) || 0,
+    paymentD1: Number(p.paymentD1 !== undefined ? p.paymentD1 : p.paymentd1) || 0,
+    paymentD2: Number(p.paymentD2 !== undefined ? p.paymentD2 : p.paymentd2) || 0,
+    paymentD3: Number(p.paymentD3 !== undefined ? p.paymentD3 : p.paymentd3) || 0,
+    dueDate: p.dueDate || p.duedate || "",
+    nextAction: p.nextAction || p.nextaction || "",
+    nextActionDue: p.nextActionDue || p.nextactiondue || "",
+    projectType: p.projectType || p.projecttype || "AI Render",
+    milestones,
+    paymentPhase: p.paymentPhase || p.paymentphase || "Phase 1",
+    paymentPhaseProgress: Number(p.paymentPhaseProgress !== undefined ? p.paymentPhaseProgress : p.paymentphaseprogress) || 0,
+    thumbnailUrl: p.thumbnailUrl || p.thumbnailurl || "",
+    notes: p.notes || "",
+  };
+};
+
 type PageId = "overview" | "projects" | "finance" | "agents" | "documents" | "schedule";
 
 export default function App() {
@@ -115,12 +157,14 @@ export default function App() {
     return null;
   });
 
-  if (!token) {
-    return <Login onLoginSuccess={(t) => {
-      localStorage.setItem("anphim_auth_token", t);
-      setToken(t);
-    }} />;
-  }
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [logoAnimKey, setLogoAnimKey] = useState<number>(0);
+
+  // Preload logo-anim.gif so it plays immediately on first click
+  useEffect(() => {
+    const img = new Image();
+    img.src = "/logo-anim.gif";
+  }, []);
 
   // Auto-scroll to top when navigating pages or selecting a new project
   useEffect(() => {
@@ -169,80 +213,42 @@ export default function App() {
     }
   };
 
-  // Normalize a raw project from the API into a fully-typed Project object
-  const normalizeProject = (p: any): import("./types").Project => {
-    // milestones can come as string[] from DB or object[] from local state
-    const MILESTONE_NAMES = [
-      "Brief / Scope", "Pre-Production", "Draft idea",
-      "Storyboard", "Production", "Offline", "Online",
-      "Delivery", "Final / Close-out"
-    ];
-    let milestones: { name: string; date: string; completed: boolean }[] = [];
-    if (Array.isArray(p.milestones)) {
-      milestones = p.milestones.map((ms: any) => {
-        if (typeof ms === "string") {
-          return { name: ms, date: "", completed: false };
-        }
-        return { name: ms.name || "", date: ms.date || "", completed: !!ms.completed };
-      });
-    }
-    if (milestones.length === 0) {
-      milestones = MILESTONE_NAMES.map(n => ({ name: n, date: "", completed: false }));
-    }
-
-    return {
-      id: String(p.id || ""),
-      name: p.projectName || p.name || "",
-      client: p.client || "N/A",
-      status: p.status || "Chưa bắt đầu",
-      budget: Number(p.budget) || 0,
-      received: Number(p.received) || 0,
-      paymentD1: Number(p.paymentD1 !== undefined ? p.paymentD1 : p.paymentd1) || 0,
-      paymentD2: Number(p.paymentD2 !== undefined ? p.paymentD2 : p.paymentd2) || 0,
-      paymentD3: Number(p.paymentD3 !== undefined ? p.paymentD3 : p.paymentd3) || 0,
-      dueDate: p.dueDate || p.duedate || "",
-      nextAction: p.nextAction || p.nextaction || "",
-      nextActionDue: p.nextActionDue || p.nextactiondue || "",
-      projectType: p.projectType || p.projecttype || "AI Render",
-      milestones,
-      paymentPhase: p.paymentPhase || p.paymentphase || "Phase 1",
-      paymentPhaseProgress: Number(p.paymentPhaseProgress !== undefined ? p.paymentPhaseProgress : p.paymentphaseprogress) || 0,
-      thumbnailUrl: p.thumbnailUrl || p.thumbnailurl || "",
-      notes: p.notes || "",
-    };
-  };
-
-  // Fetch real data from the Backend API on load
-  useEffect(() => {
+  // Reusable function to fetch live DB from backend
+  const fetchDbData = React.useCallback(async (showToast: boolean = false) => {
     const tokenStr = localStorage.getItem('anphim_auth_token');
-    const headers = tokenStr ? { 'Authorization': `Bearer ${tokenStr}` } : undefined;
-    apiFetch('/api/db', { headers })
-      .then(res => {
-        if (!res.ok) throw new Error("API response not ok");
-        return res.json();
-      })
-      .then(data => {
-        if (data && data.projects) {
-          const normalizedProjects = (data.projects || []).map(normalizeProject);
-          const projectLookup = new Map<string, string>();
-          normalizedProjects.forEach((p: any) => {
-            if (p.id) projectLookup.set(p.id.toLowerCase(), p.name);
-          });
-          projectLookup.set('proj-canhan', 'Cá nhân');
-          projectLookup.set('proj_canhan', 'Cá nhân');
-          projectLookup.set('proj-congty', 'Công ty');
-          projectLookup.set('proj_congty', 'Công ty');
+    if (!tokenStr) return;
+    const startTime = Date.now();
+    setIsRefreshing(true);
+    if (showToast) {
+      setSyncToast({ type: 'saving', message: 'Đang làm mới dữ liệu...' });
+    }
+    try {
+      const headers = { 'Authorization': `Bearer ${tokenStr}` };
+      const res = await apiFetch('/api/db', { headers });
+      if (!res.ok) throw new Error("API response not ok");
+      const data = await res.json();
+      if (data && data.projects) {
+        const normalizedProjects = (data.projects || []).map(normalizeProject);
+        const projectLookup = new Map<string, string>();
+        normalizedProjects.forEach((p: any) => {
+          if (p.id) projectLookup.set(p.id.toLowerCase(), p.name);
+        });
+        projectLookup.set('proj-canhan', 'Cá nhân');
+        projectLookup.set('proj_canhan', 'Cá nhân');
+        projectLookup.set('proj-congty', 'Công ty');
+        projectLookup.set('proj_congty', 'Công ty');
 
+        setDb(prevDb => {
           const safeDb: GoogleSheetDB = {
-            ...db,
+            ...prevDb,
             ...data,
-            dashboard: { ...(db.dashboard || {}), ...(data.dashboard || {}) },
-            agentPerformance: { ...(db.agentPerformance || {}), ...(data.agentPerformance || {}) },
+            dashboard: { ...(prevDb.dashboard || {}), ...(data.dashboard || {}) },
+            agentPerformance: { ...(prevDb.agentPerformance || {}), ...(data.agentPerformance || {}) },
             projects: normalizedProjects,
-            cashFlow: data.cashFlow || db.cashFlow,
-            expenses: data.expenses || db.expenses,
-            alerts: data.alerts || db.alerts,
-            projectDocuments: (data.projectDocuments || db.projectDocuments || []).map((pd: any) => ({
+            cashFlow: data.cashFlow || prevDb.cashFlow,
+            expenses: data.expenses || prevDb.expenses,
+            alerts: data.alerts || prevDb.alerts,
+            projectDocuments: (data.projectDocuments || prevDb.projectDocuments || []).map((pd: any) => ({
               projectId: pd.projectId || pd.projectid || "",
               projectName: pd.projectName || pd.projectname || "",
               overallStatus: pd.overallStatus || pd.overallstatus || "N/A",
@@ -260,7 +266,7 @@ export default function App() {
               vatR3Link: pd.vatR3Link || pd.vatr3_link || "",
               liquidationLink: pd.liquidationLink || pd.liquidation_link || ""
             })),
-            expenseTransactions: (data.expenseTransactions || db.expenseTransactions || []).map((exp: any) => {
+            expenseTransactions: (data.expenseTransactions || prevDb.expenseTransactions || []).map((exp: any) => {
               const pid = (exp.projectId || exp.projectid || "").toLowerCase();
               const resolvedProject = exp.project || projectLookup.get(pid) || (pid ? (pid.startsWith('proj_') ? pid : 'Chung') : 'Chung');
               return {
@@ -271,19 +277,54 @@ export default function App() {
                 amount: Number(exp.amount) || 0
               };
             }),
-            actions: data.actions || db.actions,
-            agents: data.agents || db.agents,
-            tasks: data.tasks || db.tasks,
-            incomes: data.incomes || db.incomes,
-            schedule: data.schedule || db.schedule
+            actions: data.actions || prevDb.actions,
+            agents: data.agents || prevDb.agents,
+            tasks: data.tasks || prevDb.tasks,
+            incomes: data.incomes || prevDb.incomes,
+            schedule: data.schedule || prevDb.schedule
           };
-          updateDbState(safeDb);
+          setStoredSheetData(safeDb);
+          return safeDb;
+        });
+
+        if (showToast) {
+          setSyncToast({ type: 'success', message: '✓ Đã cập nhật dữ liệu mới nhất' });
+          setTimeout(() => setSyncToast(null), 2000);
         }
-      })
-      .catch(err => {
-        console.error("Failed to load live database from Backend API:", err);
-      });
+      }
+    } catch (err: any) {
+      console.error("Failed to load live database from Backend API:", err);
+      if (showToast) {
+        setSyncToast({ type: 'error', message: '✕ Lỗi làm mới dữ liệu' });
+        setTimeout(() => setSyncToast(null), 3000);
+      }
+    } finally {
+      if (showToast) {
+        // Giữ animation chạy trọn vẹn đúng 2 giây (đoạn GIF đã được speed up 2x về 2s)
+        const elapsed = Date.now() - startTime;
+        const minAnimTime = 2000;
+        if (elapsed < minAnimTime) {
+          await new Promise(resolve => setTimeout(resolve, minAnimTime - elapsed));
+        }
+      }
+      setIsRefreshing(false);
+    }
   }, []);
+
+  // Fetch real data on load and when token becomes valid (e.g. after login)
+  useEffect(() => {
+    if (token) {
+      fetchDbData();
+    }
+  }, [token, fetchDbData]);
+
+  // Click logo handler: Go to Overview and refresh data without pressing F5
+  const handleLogoClick = () => {
+    setActivePage("overview");
+    setSelectedProjectId("");
+    setLogoAnimKey(Date.now());
+    fetchDbData(true);
+  };
 
   // Handler: Select a project and slide focus automatically
   const handleSelectProject = (projectId: string) => {
@@ -611,36 +652,57 @@ export default function App() {
       // Do not show paused projects on the timeline
       if (proj.status === 'Tạm dừng') return;
 
-      // 1. Project Due Date
-      if (proj.dueDate) {
-        const parsedDue = parseDateSafeToYYYYMMDD(proj.dueDate);
-        if (parsedDue) {
-          events.push({
-            id: `proj_dueDate_${proj.id}`,
-            title: `Deadline: ${proj.name}`,
-            description: proj.notes || `Client: ${proj.client}`,
-            date: parsedDue,
-            startTime: '17:00',
-            category: 'work',
-            priority: 'high',
-            status: proj.status === 'Hoàn thành' ? 'done' : (proj.status === 'Đang làm' ? 'in_progress' : 'todo'),
-            projectId: proj.id
-          });
-        }
-      }
+      // 1. Không tạo event "Deadline: [Tên dự án]" riêng biệt trên lịch làm việc vì hạn chót đã được thể hiện chính xác qua milestone cuối cùng.
 
       // 2. Project Milestones
+      const validMs = (proj.milestones || []).filter(m => m && m.date);
+      const totalMs = validMs.length;
+
       (proj.milestones || []).forEach((ms, index) => {
         if (ms.date) {
           const parsedMsDate = parseDateSafeToYYYYMMDD(ms.date);
           if (parsedMsDate) {
+            const msNameLower = (ms.name || '').toLowerCase();
+            const isLastMilestone = totalMs > 0 && index === totalMs - 1;
+
+            // Intelligent Category Classification
+            let cat: "work" | "meeting" | "personal" | "important" = 'work';
+            let prio: "low" | "medium" | "high" = 'medium';
+
+            if (
+              isLastMilestone ||
+              msNameLower.includes('final') ||
+              msNameLower.includes('delivery') ||
+              msNameLower.includes('bàn giao') ||
+              msNameLower.includes('chốt online') ||
+              msNameLower.includes('chốt') ||
+              msNameLower.includes('close-out') ||
+              msNameLower.includes('nghiệm thu') ||
+              msNameLower.includes('deadline') ||
+              msNameLower.includes('contract signed') ||
+              msNameLower.includes('batch')
+            ) {
+              cat = 'important';
+              prio = 'high';
+            } else if (
+              msNameLower.includes('quay') ||
+              msNameLower.includes('shoot') ||
+              msNameLower.includes('họp') ||
+              msNameLower.includes('gặp') ||
+              msNameLower.includes('workshop') ||
+              msNameLower.includes('event')
+            ) {
+              cat = 'meeting';
+              prio = 'high';
+            }
+
             events.push({
               id: `proj_milestone_${proj.id}_${index}`,
               title: `${ms.name} (${proj.name})`,
               date: parsedMsDate,
               startTime: '09:00',
-              category: 'work',
-              priority: 'medium',
+              category: cat,
+              priority: prio,
               status: ms.completed || proj.status === 'Hoàn thành' ? 'done' : 'todo',
               projectId: proj.id
             });
@@ -839,6 +901,17 @@ export default function App() {
     return incomplete.slice(0, 3);
   };
 
+  if (!token) {
+    return (
+      <Login
+        onLoginSuccess={(t) => {
+          localStorage.setItem("anphim_auth_token", t);
+          setToken(t);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#0A0C0E] text-slate-100 font-sans">
       
@@ -867,24 +940,42 @@ export default function App() {
       <aside className={`${isSidebarCollapsed ? "w-16" : "w-[230px]"} bg-[#0E1012] border-r border-[#1e2329]/95 flex flex-col justify-between shrink-0 select-none transition-all duration-300`}>
         <div>
           {/* AN PHIM Elegant Cinematic SVG Logo & Title */}
-          <div className={`p-4 border-b border-neutral-900/40 ${isSidebarCollapsed ? "flex justify-center" : ""}`}>
+          <div 
+            onClick={handleLogoClick}
+            title={lang === "en" ? "Return to Overview & Refresh data" : "Về Trang Tổng Quan & Làm mới dữ liệu"}
+            className={`p-4 border-b border-neutral-900/40 cursor-pointer group hover:bg-neutral-900/40 transition-all select-none ${isSidebarCollapsed ? "flex justify-center" : ""}`}
+          >
             <div className="flex items-center space-x-3">
               {/* Majestic A structure wrapped with movie filmreel strip */}
-              <div className="relative w-10 h-10 shrink-0">
-                <img 
-                  src="/logo.png" 
-                  alt="An Phim Logo" 
-                  className="w-full h-full object-contain drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]" 
-                />
+              <div className="relative w-10 h-10 shrink-0 flex items-center justify-center">
+                {isRefreshing ? (
+                  <img 
+                    key={logoAnimKey}
+                    src={`/logo-anim.gif?t=${logoAnimKey}`} 
+                    alt="An Phim Animation" 
+                    className="w-full h-full object-contain transition-all duration-200" 
+                  />
+                ) : (
+                  <img 
+                    src="/logo.png" 
+                    alt="An Phim Logo" 
+                    className="w-full h-full object-contain transition-all duration-200 group-hover:scale-105" 
+                  />
+                )}
               </div>
 
               {/* Headings pair */}
               {!isSidebarCollapsed && (
                 <div>
-                  <h1 className="text-[10px] font-sans font-extrabold tracking-widest text-[#10B981] uppercase leading-none">
-                    AN PHIM WORKSPACE
-                  </h1>
-                  <span className="text-[10px] font-mono font-medium text-neutral-400 block mt-1 uppercase tracking-tight">
+                  <div className="flex items-center space-x-1.5">
+                    <h1 className="text-[10px] font-sans font-extrabold tracking-widest text-[#10B981] group-hover:text-emerald-400 uppercase leading-none transition-colors">
+                      AN PHIM WORKSPACE
+                    </h1>
+                    {isRefreshing && (
+                      <Loader2 className="w-2.5 h-2.5 text-emerald-400 animate-spin" />
+                    )}
+                  </div>
+                  <span className="text-[10px] font-mono font-medium text-neutral-400 block mt-1 uppercase tracking-tight group-hover:text-neutral-300 transition-colors">
                     {t.ceoCommandUnit}
                   </span>
                 </div>

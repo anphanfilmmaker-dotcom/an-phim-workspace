@@ -52,15 +52,20 @@ export default function OverviewPage({
 }: OverviewPageProps) {
   const t = translations[lang];
 
-  // Grab top 3 active projects
+  // Active running projects (excluding completed, hidden, internal, and paused)
   const activeProjects = [...db.projects]
-    .filter((p) => p.status !== "Hoàn thành")
+    .filter((p) => p.status !== "Hoàn thành" && p.status !== "Hidden" && p.status !== "Tạm dừng" && p.projectType !== "Internal")
     .sort((a, b) => {
-      if (a.status === "Đang làm" && b.status !== "Đang làm") return -1;
-      if (a.status !== "Đang làm" && b.status === "Đang làm") return 1;
-      return 0;
-    })
-    .slice(0, 3);
+      const order: Record<string, number> = {
+        'Cần revise': 1,
+        'Đang làm': 2,
+        'Chờ feedback': 3,
+        'Chưa bắt đầu': 4
+      };
+      const prioA = order[a.status] ?? 99;
+      const prioB = order[b.status] ?? 99;
+      return prioA - prioB;
+    });
 
   const pendingActions = React.useMemo(() => {
     const todayStr = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0];
@@ -114,96 +119,7 @@ export default function OverviewPage({
     (p.status === "Đang làm" || p.status === "Chờ feedback" || p.status === "Cần revise")
   ).length;
 
-  // Total expense calculation
-  const totalExpense = db.expenses.reduce((sum, e) => sum + e.amount, 0);
 
-  // Tính toán dòng tiền 7 ngày gần nhất dựa trên incomes và expenseTransactions
-  const recentCashFlow = React.useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const buckets: any[] = [];
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(today.getTime() - i * 86400000);
-      buckets.push({
-        id: `d_${d.getTime()}`,
-        label: `${d.getDate()}/${d.getMonth()+1}`,
-        dateVal: d.getTime(),
-        inflow: 0,
-        outflow: 0,
-        netProfit: 0
-      });
-    }
-
-    const processItem = (dateStr: string, amount: number, isIncome: boolean) => {
-      if (!dateStr || !amount) return;
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return;
-      
-      const itemTime = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-      const bucket = buckets.find(b => b.dateVal === itemTime);
-      if (bucket) {
-        if (isIncome) bucket.inflow += amount;
-        else bucket.outflow += amount;
-      }
-    };
-
-    (db.incomes || []).forEach(inc => processItem(inc.date, inc.amount, true));
-    (db.expenseTransactions || []).forEach(exp => processItem(exp.date, exp.amount, false));
-
-    buckets.forEach(b => {
-      b.netProfit = b.inflow - b.outflow;
-    });
-
-    return buckets;
-  }, [db.incomes, db.expenseTransactions]);
-
-  // Let's compute some nice SVG metrics for Cash Flow (A dual green–orange bar graph with white trendline for net profit)
-  const maxCfVal = Math.max(...recentCashFlow.map(cf => Math.max(cf.inflow, Math.abs(cf.outflow))) || [1]);
-
-  // ── Expense donut: gom nhóm nhỏ thành "Khác" ──────────────────────────
-  const TOP_CATEGORIES = ["Personal", "Marketing", "Freelancer"];
-  const PIE_COLORS: Record<string, string> = {
-    Personal: "#10B981", // emerald
-    Marketing: "#f59e0b", // amber
-    Freelancer: "#f97316", // orange  (Nhân sự Ngoài)
-    Khác: "#6366f1", // indigo
-  };
-  const PIE_TEXT_COLORS: Record<string, string> = {
-    Personal: "text-emerald-400",
-    Marketing: "text-amber-400",
-    Freelancer: "text-orange-400",
-    Khác: "text-indigo-400",
-  };
-
-  // Tách top 3 + gom "Khác"
-  const topExpenses = db.expenses.filter(e => TOP_CATEGORIES.includes(e.category));
-  const othersExpenses = db.expenses.filter(e => !TOP_CATEGORIES.includes(e.category));
-  const othersAmount = othersExpenses.reduce((s, e) => s + e.amount, 0);
-  const othersPercent = othersExpenses.reduce((s, e) => s + e.percentage, 0);
-  const pieData = [
-    ...topExpenses,
-    ...(othersPercent > 0 ? [{ category: "Khác", amount: othersAmount, percentage: othersPercent, color: "" }] : []),
-  ];
-
-  // Tên hiển thị
-  const categoryLabel = (cat: string) => {
-    if (lang === "en") return cat;
-    const map: Record<string, string> = {
-      Personal: "Personal",
-      Marketing: "Marketing",
-      Freelancer: "Nhân sự Ngoài",
-      Production: "Sản xuất Phim",
-      "AI Tools": "Công cụ AI",
-      Admin: "Hành chính",
-      Others: "Danh mục khác",
-      Khác: "Khác",
-    };
-    return map[cat] || cat;
-  };
-
-  // Tính cumulativePercent cho SVG donut
-  let cumulativePercent = 0;
 
   const translateStatus = (stat: string) => {
     if (lang === "en") return stat;
@@ -311,11 +227,11 @@ export default function OverviewPage({
       {/* Main split grid layout */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-2 md:flex-1 md:overflow-hidden min-h-0">
 
-        {/* Left column: Projects and Finance */}
+        {/* Left column: Project Overview */}
         <div className="md:col-span-7 xl:col-span-8 flex flex-col gap-2 md:h-full md:overflow-hidden min-h-0">
 
           {/* Section A: Project Overview */}
-          <div className="flex flex-col md:flex-[1.2] md:min-h-0 py-1">
+          <div className="flex flex-col flex-1 md:min-h-0 py-1 overflow-hidden">
             <div className="flex justify-between items-center mb-2 pl-[16px] pr-2 shrink-0">
               <div>
                 <h3 className="text-[11px] sm:text-xs font-mono font-bold text-[#10B981] uppercase tracking-wider">
@@ -332,7 +248,7 @@ export default function OverviewPage({
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1 md:min-h-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 flex-1 md:min-h-0 overflow-y-auto pr-1.5 custom-thin-scroll">
               {activeProjects.map((p) => {
                 const isAtRisk = p.status === "Cần revise";
                 const isCompleted = p.status === "Hoàn thành";
@@ -344,22 +260,22 @@ export default function OverviewPage({
                   <div
                     key={p.id}
                     onClick={() => onSelectProject(p.id)}
-                    className="bg-[#171b21] hover:bg-[#1b2027]/90 rounded-xl p-3 border border-[#232a32] hover:border-emerald-500/40 cursor-pointer flex flex-col justify-between transition group h-[142px] md:h-full md:min-h-0"
+                    className="bg-[#171b21] hover:bg-[#1b2027]/90 rounded-xl p-3 border border-[#232a32] hover:border-emerald-500/40 cursor-pointer flex flex-col justify-between transition group min-h-[170px]"
                   >
                     <div className="flex flex-col flex-1 min-h-0 justify-between">
                       <div className="flex flex-col flex-1 min-h-0">
                         {/* Top Row: Project Name & Budget */}
-                        <div className="flex items-center justify-between mb-1 shrink-0">
-                          <span className="text-[11px] text-white font-sans font-bold tracking-tight truncate max-w-[120px]">
+                        <div className="flex items-center justify-between mb-1.5 shrink-0">
+                          <span className="text-[11px] text-white font-sans font-bold tracking-tight truncate max-w-[130px]" title={p.name}>
                             {p.name}
                           </span>
-                          <span className="text-[10px] font-mono font-bold text-emerald-400">
+                          <span className="text-[10px] font-mono font-bold text-emerald-400 shrink-0">
                             {Math.round(p.budget / 1_000_000)}M
                           </span>
                         </div>
 
                         {/* Visual Frame */}
-                        <div className="relative flex-1 w-full rounded-lg bg-neutral-900 border border-neutral-800/60 overflow-hidden mb-1.5 min-h-[32px] shrink-0 md:shrink">
+                        <div className="relative flex-1 w-full rounded-lg bg-neutral-900 border border-neutral-800/60 overflow-hidden mb-1.5 min-h-[75px] shrink-0 md:shrink">
                           {p.thumbnailUrl ? (
                             <img
                               src={p.thumbnailUrl}
@@ -376,7 +292,7 @@ export default function OverviewPage({
                           
                           {/* Client and Status inside image */}
                           <div className="absolute bottom-2 left-2">
-                            <p className="text-[10px] font-mono font-medium text-neutral-300 truncate max-w-[120px]">{p.client}</p>
+                            <p className="text-[10px] font-mono font-medium text-neutral-300 truncate max-w-[110px]">{p.client}</p>
                           </div>
                           <div className="absolute bottom-2 right-2 flex items-center space-x-1">
                             <CircleDot className={`w-2 h-2 ${getStatusTextColor(p.status)} ${p.status === "Cần revise" || p.status === "Tạm dừng" ? "animate-pulse" : ""}`} />
@@ -394,9 +310,9 @@ export default function OverviewPage({
                     </div>
 
                     {/* Next Action Indicator */}
-                    <div className="border-t border-neutral-800/40 pt-1.5 mt-1.5 flex items-center space-x-1 text-[10px] text-neutral-350 font-mono shrink-0">
+                    <div className="border-t border-neutral-800/40 pt-1.5 mt-1 flex items-center space-x-1 text-[10px] text-neutral-350 font-mono shrink-0">
                       <Clock className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
-                      <span className="truncate font-sans leading-none">
+                      <span className="truncate font-sans leading-none" title={p.nextAction}>
                         {p.nextAction}
                       </span>
                     </div>
@@ -404,176 +320,6 @@ export default function OverviewPage({
                   </div>
                 );
               })}
-            </div>
-          </div>
-
-          {/* Section B: Finance Snapshot charts */}
-          <div className="flex flex-col md:flex-[1.1] md:min-h-0 min-h-0 py-1">
-            <div className="flex justify-between items-center mb-1.5 pl-[16px] pr-2 shrink-0">
-              <div>
-                <h3 className="text-[11px] sm:text-xs font-mono font-bold text-[#10B981] uppercase tracking-wider">
-                  {t.weeklyFinancialSnapshot}
-                </h3>
-                <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug">{t.weeklyFinancialSnapshotDesc}</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:flex-1 md:overflow-hidden min-h-0">
-
-              {/* Chart 1: Cash Flow Dual Bars */}
-              <div className="bg-[#171b21] rounded-xl py-2 pr-2 pl-[16px] border border-[#232a32] flex flex-col justify-between md:h-full md:overflow-hidden min-h-0">
-                <div className="flex justify-between items-center mb-1.5 shrink-0">
-                  <span className="text-[10px] font-mono text-neutral-350 font-medium">{t.weeklyCashFlowTrend}</span>
-                  <div className="flex items-center space-x-2 text-[10px] font-mono">
-                    <span className="flex items-center space-x-1">
-                      <span className="w-2.5 h-2 rounded-sm bg-emerald-500" />
-                      <span className="text-neutral-450">{t.in}</span>
-                    </span>
-                    <span className="flex items-center space-x-1">
-                      <span className="w-2.5 h-2 rounded-sm bg-orange-500" />
-                      <span className="text-neutral-450">{t.out}</span>
-                    </span>
-                    <span className="flex items-center space-x-1">
-                      <span className="w-2 h-2 rounded-full bg-white" />
-                      <span className="text-neutral-450">{t.net}</span>
-                    </span>
-                  </div>
-                </div>
-
-                {/* Inline Responsive SVG Chart */}
-                <div className="flex-1 w-full relative min-h-[85px] flex items-center justify-center">
-                  <svg viewBox="0 0 100 55" className="w-full h-full overflow-visible">
-                    <line x1="0" y1="10" x2="100" y2="10" stroke="#1f2730" strokeWidth="0.25" strokeDasharray="1,1" />
-                    <line x1="0" y1="27.5" x2="100" y2="27.5" stroke="#1f2730" strokeWidth="0.25" />
-                    <line x1="0" y1="45" x2="100" y2="45" stroke="#1f2730" strokeWidth="0.25" strokeDasharray="1,1" />
-
-                    {recentCashFlow.map((cf, i) => {
-                      const spacing = 96 / (recentCashFlow.length - 1 || 1);
-                      const barWidth = 1.2;
-                      const xPos = 2 + i * spacing;
-                      const inflowYPercent = Math.min(20, (cf.inflow / maxCfVal) * 20);
-                      const outflowYPercent = Math.min(20, (Math.abs(cf.outflow) / maxCfVal) * 20);
-                      const inflowY = 27.5 - inflowYPercent;
-                      const outflowY = 27.5;
-
-                      return (
-                        <g key={cf.id} className="group cursor-pointer">
-                          <rect
-                            x={xPos - barWidth}
-                            y={inflowY}
-                            width={barWidth}
-                            height={inflowYPercent}
-                            className="fill-emerald-500/85 transition"
-                            rx="0.2"
-                          />
-                          <rect
-                            x={xPos + 0.2}
-                            y={outflowY}
-                            width={barWidth}
-                            height={outflowYPercent}
-                            className="fill-orange-500/85 transition"
-                            rx="0.2"
-                          />
-                        </g>
-                      );
-                    })}
-
-                    <path
-                      d={recentCashFlow.map((cf, i) => {
-                        const spacing = 96 / (recentCashFlow.length - 1 || 1);
-                        const xPos = 2 + i * spacing;
-                        const scaling = (cf.netProfit / maxCfVal) * 20;
-                        const yPos = 27.5 - scaling;
-                        return `${i === 0 ? "M" : "L"} ${xPos} ${yPos}`;
-                      }).join(" ")}
-                      fill="none"
-                      stroke="#ffffff"
-                      strokeWidth="0.5"
-                    />
-
-                    {recentCashFlow.map((cf, i) => {
-                      const spacing = 96 / (recentCashFlow.length - 1 || 1);
-                      const xPos = 2 + i * spacing;
-                      const scaling = (cf.netProfit / maxCfVal) * 20;
-                      const yPos = 27.5 - scaling;
-                      return (
-                        <circle
-                          key={cf.id}
-                          cx={xPos}
-                          cy={yPos}
-                          r="0.5"
-                          className="fill-neutral-900 stroke-white cursor-pointer"
-                          strokeWidth="0.3"
-                        />
-                      );
-                    })}
-                  </svg>
-                </div>
-              </div>
-
-              {/* Chart 2: Capital Expense Breakdown — gom nhóm nhỏ thành "Khác" */}
-              <div className="bg-[#171b21] rounded-xl py-2 pr-2 pl-[16px] border border-[#232a32] flex flex-col justify-between md:h-full md:overflow-hidden min-h-0">
-                <div className="flex justify-between items-center mb-1.5 shrink-0">
-                  <span className="text-[10px] font-mono text-neutral-350 font-medium">{t.expenseDistribution}</span>
-                  <span className="text-[10px] font-mono font-bold text-[#10B981]">{formatVND(totalExpense)}</span>
-                </div>
-
-                <div className="flex flex-row items-center gap-4 flex-1 min-h-0 overflow-y-auto custom-thin-scroll">
-                  {/* Donut SVG */}
-                  <div className="flex items-center justify-center shrink-0">
-                    <div className="relative w-20 h-20">
-                      <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                        <circle cx="18" cy="18" r="15.91549430918954" fill="transparent" stroke="#1a2027" strokeWidth="3.5" />
-                        {pieData.map((e) => {
-                          const strokeDasharray = `${e.percentage} ${100 - e.percentage}`;
-                          const strokeDashoffset = 100 - cumulativePercent;
-                          cumulativePercent += e.percentage;
-                          const strokeColor = PIE_COLORS[e.category] ?? "#9ca3af";
-                          return (
-                            <circle
-                              key={e.category}
-                              cx="18" cy="18"
-                              r="15.91549430918954"
-                              fill="transparent"
-                              stroke={strokeColor}
-                              strokeWidth="3.5"
-                              strokeDasharray={strokeDasharray}
-                              strokeDashoffset={strokeDashoffset}
-                            />
-                          );
-                        })}
-                      </svg>
-                      <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-[9px] uppercase font-mono text-neutral-450 leading-none">{t.total}</span>
-                        <strong className="text-[10px] text-white font-sans font-extrabold leading-none mt-0.5">
-                          {Math.round(totalExpense / 1_000_000)}M
-                        </strong>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Legend rows: Tên | Số tiền (Tỷ lệ%) */}
-                  <div className="space-y-1.5 flex-1 min-w-0">
-                    {pieData.map((e) => {
-                      const textColor = PIE_TEXT_COLORS[e.category] ?? "text-neutral-400";
-                      const dotColor = PIE_COLORS[e.category] ?? "#9ca3af";
-                      return (
-                        <div key={e.category} className="flex items-center gap-1.5 text-[9.5px] leading-tight">
-                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dotColor }} />
-                          <span className="text-neutral-300 font-sans font-medium shrink-0 truncate max-w-[70px]">
-                            {categoryLabel(e.category)}
-                          </span>
-                          <span className="text-neutral-600 mx-0.5">|</span>
-                          <span className={`${textColor} font-mono font-bold truncate`}>
-                            {Math.round(e.amount / 1_000_000)}M ({e.percentage}%)
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
             </div>
           </div>
 
@@ -659,10 +405,9 @@ function splitIntoSubTasks(title: string): string[] {
 function getCategoryTag(category?: string, lang: 'en' | 'vi' = 'vi') {
   switch (category) {
     case 'work': return { label: lang === 'en' ? 'Work' : 'Công việc', color: 'text-[#10B981] bg-[#10B981]/10 border-[#10B981]/20' };
-    case 'personal': return { label: lang === 'en' ? 'Personal' : 'Cá nhân', color: 'text-[#06b6d4] bg-[#06b6d4]/10 border-[#06b6d4]/20' };
     case 'meeting': return { label: lang === 'en' ? 'Meeting' : 'Họp/Sự kiện', color: 'text-[#f97316] bg-[#f97316]/10 border-[#f97316]/20' };
-    case 'ai_agent': return { label: 'AI Agent', color: 'text-[#a855f7] bg-[#a855f7]/10 border-[#a855f7]/20' };
-    case 'finance': return { label: lang === 'en' ? 'Finance' : 'Tài chính', color: 'text-[#34d399] bg-[#34d399]/10 border-[#34d399]/20' };
+    case 'personal': return { label: lang === 'en' ? 'Personal' : 'Cá nhân', color: 'text-[#06b6d4] bg-[#06b6d4]/10 border-[#06b6d4]/20' };
+    case 'important': return { label: lang === 'en' ? 'Important' : 'Quan trọng', color: 'text-[#ef4444] bg-[#ef4444]/10 border-[#ef4444]/20' };
     default: return null;
   }
 }

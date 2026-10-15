@@ -18,7 +18,7 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], ag
   const [date, setDate] = useState('2026-06-16');
   const [startTime, setStartTime] = useState('14:00');
   const [endTime, setEndTime] = useState('15:30');
-  const [category, setCategory] = useState('meeting');
+  const [category, setCategory] = useState('work');
   const [priority, setPriority] = useState('high');
   const [status, setStatus] = useState<'todo' | 'in_progress' | 'done'>('todo');
   const [owner, setOwner] = useState('An Phan');
@@ -44,7 +44,7 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], ag
         setDate(initialEvent.date || '');
         setStartTime(initialEvent.startTime || '');
         setEndTime(initialEvent.endTime || '');
-        setCategory(initialEvent.category || 'meeting');
+        setCategory(initialEvent.category || 'work');
         setPriority(initialEvent.priority || 'medium');
         setStatus(initialEvent.status || 'todo');
         setOwner(initialEvent.agent || initialEvent.owner || initialEvent.suggestedAgent || '');
@@ -198,20 +198,17 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], ag
                   onChange={(e) => setCategory(e.target.value)}
                   className={selectClass}
                 >
-                  <option value="meeting">{lang === 'en' ? 'Meeting' : 'Họp / Sự kiện'}</option>
                   <option value="work">{lang === 'en' ? 'Work' : 'Công việc'}</option>
+                  <option value="meeting">{lang === 'en' ? 'Meeting / Event' : 'Họp / Sự kiện'}</option>
                   <option value="personal">{lang === 'en' ? 'Personal' : 'Cá nhân'}</option>
-                  <option value="finance">{lang === 'en' ? 'Finance' : 'Tài chính'}</option>
-                  <option value="ai_agent">AI Agent</option>
-                  <option value="other">{lang === 'en' ? 'Other' : 'Khác'}</option>
+                  <option value="important">{lang === 'en' ? 'Important / Deadline' : 'Quan trọng / Deadline'}</option>
                 </select>
                 <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center">
                   <div className={`w-2.5 h-2.5 rounded-full ${
-                    category === 'meeting' ? 'bg-[#f97316]' :
                     category === 'work' ? 'bg-[#10B981]' :
+                    category === 'meeting' ? 'bg-[#f97316]' :
                     category === 'personal' ? 'bg-[#06b6d4]' :
-                    category === 'finance' ? 'bg-[#34d399]' :
-                    category === 'ai_agent' ? 'bg-[#a855f7]' : 'bg-[#8B949E]'
+                    category === 'important' ? 'bg-[#ef4444]' : 'bg-[#10B981]'
                   }`}></div>
                 </div>
                 <ChevronDown className="w-3.5 h-3.5 text-[#8B949E] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -385,13 +382,12 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], ag
 
             {/* Colors */}
             <div className="flex items-center gap-1.5">
-              {['work', 'personal', 'meeting', 'ai_agent', 'other'].map(cat => {
+              {['work', 'meeting', 'personal', 'important'].map(cat => {
                 const colors: Record<string, string> = {
                   work: 'bg-[#10B981]',
-                  personal: 'bg-[#06b6d4]',
                   meeting: 'bg-[#f97316]',
-                  ai_agent: 'bg-[#a855f7]',
-                  other: 'bg-[#8B949E]'
+                  personal: 'bg-[#06b6d4]',
+                  important: 'bg-[#ef4444]'
                 };
                 const isSelected = category === cat;
                 return (

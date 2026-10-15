@@ -52,8 +52,8 @@ export default function MiniCalendarPopover({ events, onNavigateToSchedule, lang
   const selectedEvents = events.filter(e => e.date === globalSelectedDateStr);
 
   const getEventDotColor = (event: CalendarEvent) => {
+    if (event.category === 'important') return 'bg-red-500';
     if (event.category === 'meeting' || event.priority === 'high') return 'bg-orange-500';
-    if (event.category === 'ai_agent') return 'bg-purple-500';
     if (event.category === 'personal') return 'bg-cyan-500';
     return 'bg-emerald-500';
   };
@@ -125,11 +125,11 @@ export default function MiniCalendarPopover({ events, onNavigateToSchedule, lang
                 if (isToday) {
                   bgClass = "bg-[#f97316] text-[#050809] font-bold";
                 } else if (firstEvent) {
-                  if (firstEvent.category === 'work') bgClass = "bg-[#10B981] text-[#050809] font-bold";
-                  else if (firstEvent.category === 'personal') bgClass = "bg-[#06b6d4] text-[#050809] font-bold";
+                  if (firstEvent.category === 'important') bgClass = "bg-[#ef4444] text-white font-bold";
+                  else if (firstEvent.category === 'work') bgClass = "bg-[#10B981] text-[#050809] font-bold";
                   else if (firstEvent.category === 'meeting') bgClass = "bg-[#f97316] text-[#050809] font-bold";
-                  else if (firstEvent.category === 'ai_agent') bgClass = "bg-[#a855f7] text-[#050809] font-bold";
-                  else bgClass = "bg-[#8B949E] text-[#050809] font-bold";
+                  else if (firstEvent.category === 'personal') bgClass = "bg-[#06b6d4] text-[#050809] font-bold";
+                  else bgClass = "bg-[#10B981] text-[#050809] font-bold";
                 }
 
                 if (isSelected) {

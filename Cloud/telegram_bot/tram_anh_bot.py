@@ -338,7 +338,7 @@ def create_schedule_task(title: str, date: str, start_time: str = "09:00", end_t
     - date: Định dạng YYYY-MM-DD (ví dụ '2026-09-23').
     - start_time: Định dạng HH:MM (ví dụ '09:00', '14:30').
     - end_time: Định dạng HH:MM (ví dụ '10:00', '15:30'). Nếu không truyền, mặc định là 1 tiếng sau start_time.
-    - category: Một trong các giá trị: 'work', 'meeting', 'personal', 'finance'.
+    - category: Một trong các giá trị: 'work', 'meeting', 'personal', 'important'.
     - description: Chi tiết bổ sung nếu có.
     """
     task_id = f"sch_{uuid.uuid4().hex[:8]}"

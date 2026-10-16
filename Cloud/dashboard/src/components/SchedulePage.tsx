@@ -59,7 +59,7 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
   const getEventBlockStyle = (category: string) => {
     switch (category) {
       case 'work': return "bg-[#064e3b] border-l-2 border-[#10B981]";
-      case 'meeting': return "bg-[#7c2d12] border-l-2 border-[#f97316]";
+      case 'meeting': return "bg-[#665500] border-l-2 border-[#facc15]";
       case 'personal': return "bg-[#164e63] border-l-2 border-[#06b6d4]";
       case 'important': return "bg-[#7f1d1d] border-l-2 border-[#ef4444]";
       default: return "bg-[#064e3b] border-l-2 border-[#10B981]";
@@ -256,7 +256,7 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
             <div className="flex items-center space-x-4 text-[10px] font-sans text-[#8B949E] min-w-0 pr-4">
               {[
                 { key: 'work', label: lang === 'en' ? 'Work' : 'Công việc', color: 'bg-[#10B981]' },
-                { key: 'meeting', label: lang === 'en' ? 'Meeting' : 'Họp/Sự kiện', color: 'bg-[#f97316]' },
+                { key: 'meeting', label: lang === 'en' ? 'Meeting' : 'Họp/Sự kiện', color: 'bg-[#facc15]' },
                 { key: 'personal', label: lang === 'en' ? 'Personal' : 'Cá nhân', color: 'bg-[#06b6d4]' },
                 { key: 'important', label: lang === 'en' ? 'Important' : 'Quan trọng / Deadline', color: 'bg-[#ef4444]' }
               ].map(f => {
@@ -343,7 +343,7 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
                 } else if (firstEvent) {
                   if (firstEvent.category === 'important') bgClass = "bg-[#ef4444] text-white font-bold";
                   else if (firstEvent.category === 'work') bgClass = "bg-[#10B981] text-[#050809] font-bold";
-                  else if (firstEvent.category === 'meeting') bgClass = "bg-[#f97316] text-[#050809] font-bold";
+                  else if (firstEvent.category === 'meeting') bgClass = "bg-[#facc15] text-[#050809] font-bold";
                   else if (firstEvent.category === 'personal') bgClass = "bg-[#06b6d4] text-[#050809] font-bold";
                   else bgClass = "bg-[#10B981] text-[#050809] font-bold";
                 }
@@ -431,7 +431,7 @@ export default function SchedulePage({ db, lang, onAddEvent, onDeleteEvent, onEd
                             <div className={`w-2 h-2 rounded-full shrink-0 ${
                               event.category === 'important' ? 'bg-[#ef4444]' :
                               event.category === 'work' ? 'bg-[#10B981]' :
-                              event.category === 'meeting' ? 'bg-[#f97316]' :
+                              event.category === 'meeting' ? 'bg-[#facc15]' :
                               event.category === 'personal' ? 'bg-[#06b6d4]' : 'bg-[#10B981]'
                             }`} />
                             <h4 className={`text-[12px] font-bold leading-tight transition-all ${event.status === 'done' ? 'text-[#8B949E] line-through' : 'text-[#F5F7FA]'}`}>

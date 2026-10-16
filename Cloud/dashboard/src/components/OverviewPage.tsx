@@ -405,7 +405,7 @@ function splitIntoSubTasks(title: string): string[] {
 function getCategoryTag(category?: string, lang: 'en' | 'vi' = 'vi') {
   switch (category) {
     case 'work': return { label: lang === 'en' ? 'Work' : 'Công việc', color: 'text-[#10B981] bg-[#10B981]/10 border-[#10B981]/20' };
-    case 'meeting': return { label: lang === 'en' ? 'Meeting' : 'Họp/Sự kiện', color: 'text-[#f97316] bg-[#f97316]/10 border-[#f97316]/20' };
+    case 'meeting': return { label: lang === 'en' ? 'Meeting' : 'Họp/Sự kiện', color: 'text-[#facc15] bg-[#facc15]/10 border-[#facc15]/20' };
     case 'personal': return { label: lang === 'en' ? 'Personal' : 'Cá nhân', color: 'text-[#06b6d4] bg-[#06b6d4]/10 border-[#06b6d4]/20' };
     case 'important': return { label: lang === 'en' ? 'Important' : 'Quan trọng', color: 'text-[#ef4444] bg-[#ef4444]/10 border-[#ef4444]/20' };
     default: return null;

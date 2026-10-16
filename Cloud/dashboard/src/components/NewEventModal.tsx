@@ -206,7 +206,7 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], ag
                 <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center">
                   <div className={`w-2.5 h-2.5 rounded-full ${
                     category === 'work' ? 'bg-[#10B981]' :
-                    category === 'meeting' ? 'bg-[#f97316]' :
+                    category === 'meeting' ? 'bg-[#facc15]' :
                     category === 'personal' ? 'bg-[#06b6d4]' :
                     category === 'important' ? 'bg-[#ef4444]' : 'bg-[#10B981]'
                   }`}></div>
@@ -385,7 +385,7 @@ export default function NewEventModal({ isOpen, onClose, lang, projects = [], ag
               {['work', 'meeting', 'personal', 'important'].map(cat => {
                 const colors: Record<string, string> = {
                   work: 'bg-[#10B981]',
-                  meeting: 'bg-[#f97316]',
+                  meeting: 'bg-[#facc15]',
                   personal: 'bg-[#06b6d4]',
                   important: 'bg-[#ef4444]'
                 };
